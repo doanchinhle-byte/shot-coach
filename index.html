@@ -33,7 +33,7 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .top .sp{flex:1}
 
 /* Tip banner */
-#tip{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-width:calc(100% - 32px);
+#tip{position:absolute;left:50%;top:calc(108px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-width:calc(100% - 32px);
   font-family:var(--display);font-weight:800;font-size:24px;line-height:1.15;text-align:center;text-wrap:balance;
   padding:10px 16px;border-radius:16px;background:rgba(0,0,0,.45);border:2px solid var(--warn);color:var(--fg);transition:border-color .2s}
 #tip.ok{border-color:var(--good);background:rgba(20,80,40,.75)}
@@ -86,6 +86,16 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #review button{font:600 16px/1 -apple-system,system-ui,sans-serif;border-radius:999px;padding:14px 22px;border:0}
 #saveBtn{background:var(--focus);color:#141008}#backBtn{background:#2a2e33;color:#fff}
 button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+#count{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--display);font-weight:800;font-size:120px;line-height:1;
+  color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);pointer-events:none}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
+#flash.on{opacity:.85;transition:none}
+#badge{position:absolute;top:-6px;right:-6px;min-width:22px;height:22px;border-radius:11px;background:var(--focus);color:#141008;
+  font:700 12px/22px -apple-system,system-ui,sans-serif;text-align:center;padding:0 5px}
+.thumbwrap{position:relative;width:64px;display:flex;justify-content:center}
+#review .grid{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:100%}
+#review .grid img{width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid transparent}
+#review .grid img.sel{border-color:var(--focus)}
 </style>
 </head>
 <body>
@@ -99,17 +109,19 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
     <button data-mode="people" aria-pressed="false">People</button>
     <button data-mode="place" aria-pressed="false">Place</button>
     <span class="sp"></span>
+    <button id="auto" aria-pressed="false">Auto shoot</button>
     <button id="voice" aria-pressed="false">🔈 Voice</button>
   </div>
 
   <div id="tip">Point at your subject<small>checking…</small></div>
   <div id="meters"></div>
+  <div id="count" hidden></div>
+  <div id="flash"></div>
   <div id="tpl" role="group" aria-label="Framing templates"></div>
   <div id="setup" hidden><h2 id="setupT"></h2><ol id="setupL"></ol><button id="setupOk">Got it</button></div>
 
   <div class="dock">
-    <img id="thumb" alt="Last photo" hidden>
-    <span class="side" id="thumbPh"></span>
+    <span class="thumbwrap"><img id="thumb" alt="Your photos" hidden><span id="badge" hidden></span><span class="side" id="thumbPh"></span></span>
     <button id="shoot" aria-label="Take photo"></button>
     <button class="side" id="flip">Flip<br>camera</button>
   </div>
@@ -124,6 +136,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 
 <div id="review" hidden>
   <img id="shot" alt="Your photo">
+  <div class="grid" id="strip"></div>
   <p id="saveHint">Tap Save, then “Save Image” to put it in Photos.</p>
   <div class="row"><button id="backBtn">Keep shooting</button><button id="saveBtn">Save</button></div>
 </div>
@@ -203,6 +216,12 @@ setMode(mode);
 function setVoice(on){voiceOn=on;try{localStorage.setItem("sc-voice",on?"1":"0")}catch{}$("voice").setAttribute("aria-pressed",on);$("voice").textContent=on?"🔊 Voice":"🔈 Voice"}
 $("voice").onclick=()=>{setVoice(!voiceOn);if(voiceOn)say("Voice tips on",true)};
 setVoice(voiceOn);
+
+/* ---------- Auto shoot ---------- */
+let autoOn=localStorage.getItem("sc-auto")==="1", readySince=0, lastAutoShot=0;
+function setAuto(on){autoOn=on;try{localStorage.setItem("sc-auto",on?"1":"0")}catch{}$("auto").setAttribute("aria-pressed",on);$("auto").textContent=on?"Auto shoot ON":"Auto shoot";readySince=0;$("count").hidden=true}
+$("auto").onclick=()=>{setAuto(!autoOn);say(autoOn?"Auto shoot on. Line it up and hold still.":"Auto shoot off",true)};
+setAuto(autoOn);
 
 /* ---------- Camera ---------- */
 async function startCam(){
@@ -425,27 +444,50 @@ function loop(t=0){
   draw(mp,subj);
   const el=$("tip"); const key=tip[1];
   if(key!==lastTip){ el.className=tip[3]==="ok"?"ok":tip[3]==="bad"?"bad":""; el.innerHTML=""; el.append(tip[1]); const s=document.createElement("small"); s.textContent=tip[2]; el.append(s); lastTip=key; if($("setup").hidden)say(tip[1]); }
-  $("shoot").classList.toggle("ready",tip[3]==="ok");
+  const ready=tip[3]==="ok";
+  $("shoot").classList.toggle("ready",ready);
+  // Auto shoot: stay "ready" for a 3-2-1 countdown (1.5 s), then take the photo
+  if(autoOn&&ready&&$("review").hidden&&$("setup").hidden&&t-lastAutoShot>4000){
+    if(!readySince)readySince=t;
+    const left=3-Math.floor((t-readySince)/500);
+    if(left<=0){ readySince=0; lastAutoShot=t; $("count").hidden=true; capture(false); }
+    else { if($("count").textContent!==String(left)){$("count").textContent=left; say(String(left),true)} $("count").hidden=false; }
+  }else if(readySince){ readySince=0; $("count").hidden=true; }
   const mt=$("meters"); mt.innerHTML=""; for(const [c,txt] of meters){const s=document.createElement("span");s.className="m "+c;s.textContent=txt;mt.append(s)}
 }
 
 /* ---------- Capture & save ---------- */
-let lastBlob=null;
-$("shoot").onclick=async()=>{
+const shots=[]; let sel=-1; // keeps up to 12 photos this session
+async function capture(open){
   if(!v.videoWidth)return;
   const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
   const x=c.getContext("2d"); if(facing==="user"){x.translate(c.width,0);x.scale(-1,1)} x.drawImage(v,0,0);
-  lastBlob=await new Promise(r=>c.toBlob(r,"image/jpeg",.92));
-  const url=URL.createObjectURL(lastBlob);
-  $("shot").src=url; $("thumb").src=url; $("thumb").hidden=false; $("thumbPh").hidden=true; $("review").hidden=false;
-  $("saveHint").textContent=navigator.canShare?.({files:[new File([lastBlob],"a.jpg",{type:"image/jpeg"})]})?"Tap Save, then “Save Image” to put it in Photos.":"Press and hold the photo, then tap “Save to Photos”.";
-};
-$("thumb").onclick=()=>{ if(lastBlob)$("review").hidden=false };
+  const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.92));
+  shots.push({blob,url:URL.createObjectURL(blob)}); if(shots.length>12){URL.revokeObjectURL(shots.shift().url)}
+  sel=shots.length-1;
+  $("thumb").src=shots[sel].url; $("thumb").hidden=false; $("thumbPh").hidden=true;
+  $("badge").textContent=shots.length; $("badge").hidden=shots.length<2;
+  const f=$("flash"); f.classList.add("on"); requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove("on")));
+  if(!open) say("Got it",true);
+  if(open) openReview();
+}
+function openReview(){
+  if(!shots.length)return;
+  $("shot").src=shots[sel].url;
+  const st=$("strip"); st.innerHTML=""; st.hidden=shots.length<2;
+  shots.forEach((s,i)=>{const im=document.createElement("img");im.src=s.url;im.alt="Photo "+(i+1);if(i===sel)im.className="sel";im.onclick=()=>{sel=i;openReview()};st.append(im)});
+  const canShare=!!navigator.canShare?.({files:[new File([shots[0].blob],"a.jpg",{type:"image/jpeg"})]});
+  $("saveBtn").textContent=shots.length>1?"Save all "+shots.length:"Save";
+  $("saveHint").textContent=canShare?"Tap Save, then “Save Image(s)” to put them in Photos.":"Press and hold the photo, then tap “Save to Photos”.";
+  $("review").hidden=false;
+}
+$("shoot").onclick=()=>capture(!autoOn);
+$("thumb").onclick=openReview;
 $("backBtn").onclick=()=>{$("review").hidden=true};
 $("saveBtn").onclick=async()=>{
-  if(!lastBlob)return;
-  const f=new File([lastBlob],"shot-"+Date.now()+".jpg",{type:"image/jpeg"});
-  try{ if(navigator.canShare?.({files:[f]})) await navigator.share({files:[f]}); else $("saveHint").textContent="Press and hold the photo, then tap “Save to Photos”."; }
+  if(!shots.length)return;
+  const files=shots.map((s,i)=>new File([s.blob],"shot-"+Date.now()+"-"+(i+1)+".jpg",{type:"image/jpeg"}));
+  try{ if(navigator.canShare?.({files})) await navigator.share({files}); else $("saveHint").textContent="Press and hold the photo, then tap “Save to Photos”."; }
   catch{}
 };
 document.addEventListener("visibilitychange",()=>{ if(document.hidden&&voiceOn)speechSynthesis.cancel() });

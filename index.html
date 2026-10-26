@@ -48,6 +48,14 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #tpl button{flex:none;display:flex;align-items:center;gap:6px;font:600 13px/1 -apple-system,system-ui,sans-serif;color:var(--fg);
   background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:7px 10px}
 #tpl button svg{width:20px;height:20px;flex:none}
+#tpl .addPhoto{border-style:dashed;border-color:var(--focus);color:var(--focus)}
+#tpl .refBtn{padding:3px 8px 3px 3px}
+#tpl .refBtn img{width:30px;height:30px;object-fit:cover;border-radius:6px}
+#refBar{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));display:flex;gap:6px;align-items:center;
+  background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 8px;max-width:calc(100% - 24px)}
+#refBar button{font:600 13px/1 -apple-system,system-ui,sans-serif;color:var(--fg);background:transparent;border:0;border-radius:999px;padding:8px 10px}
+#refBar button[aria-pressed="true"]{background:var(--focus);color:#141008}
+#refBar input{width:90px;accent-color:var(--focus)}
 #tpl button[aria-pressed="true"]{border-color:var(--focus);color:var(--focus);background:rgba(40,32,0,.75)}
 /* Setup card */
 #setup{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));width:min(360px,calc(100% - 32px));
@@ -89,7 +97,8 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 #count{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--display);font-weight:800;font-size:120px;line-height:1;
   color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);pointer-events:none}
 #stage.ring{background:#fff}
-#stage.ring video,#stage.ring #ov{top:17%;left:13%;width:74%;height:56%;border-radius:18px}
+#refImg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;opacity:.4}
+#stage.ring video,#stage.ring #ov,#stage.ring #refImg{top:17%;left:13%;width:74%;height:56%;border-radius:18px}
 #busy{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 18px/1.3 -apple-system,system-ui,sans-serif;text-align:center;
   background:rgba(0,0,0,.7);padding:14px 20px;border-radius:14px;pointer-events:none}
 #review .row.small button{font-size:14px;padding:10px 16px;background:#2a2e33;color:#fff}
@@ -107,6 +116,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 <body>
 <div id="stage">
   <video id="v" playsinline muted autoplay></video>
+  <img id="refImg" alt="" hidden>
   <canvas id="ov"></canvas>
 
   <div class="top">
@@ -126,6 +136,12 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <div id="flash"></div>
   <div id="busy" hidden>Night mode<br>hold still…</div>
   <div id="tpl" role="group" aria-label="Framing templates"></div>
+  <div id="refBar" hidden>
+    <button id="refGhost" aria-pressed="true">Photo</button><button id="refEdge" aria-pressed="false">Outline</button>
+    <input id="refOp" type="range" min="15" max="80" value="40" aria-label="See-through amount">
+    <button id="refDel" aria-label="Remove this photo template">🗑</button>
+  </div>
+  <input type="file" id="refFile" accept="image/*" hidden>
   <div id="setup" hidden><h2 id="setupT"></h2><ol id="setupL"></ol><button id="setupOk">Got it</button></div>
 
   <div class="dock">
@@ -139,7 +155,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <h1>Shot <span>Coach</span></h1>
   <p>Point your camera. Big tips appear live and tell you exactly what to move. When the button turns <b style="color:var(--good)">green</b>, shoot.</p>
   <button id="go">Start camera</button>
-  <p style="font-size:12px;opacity:.5">version 8</p>
+  <p style="font-size:12px;opacity:.5">version 9</p>
   <p id="err" hidden></p>
 </div>
 
@@ -226,7 +242,50 @@ const TEMPLATES={
 };
 let tplId={};
 try{tplId=JSON.parse(localStorage.getItem("sc-tpl")||"{}")}catch{}
-const curTpl=()=>TEMPLATES[mode].find(t=>t.id===tplId[mode])||TEMPLATES[mode][0];
+/* Photo templates: any picture, shown see-through over the camera to copy its framing */
+let refs=[]; try{refs=JSON.parse(localStorage.getItem("sc-refs")||"[]")}catch{}
+function saveRefs(){ for(;;){ try{localStorage.setItem("sc-refs",JSON.stringify(refs));return}catch{ if(refs.length<=1)return; refs.pop(); } } }
+const REF_STEPS=["Line up your subject with the see-through photo","Match the angle: same phone height and tilt","Tap Outline if it's hard to see through"];
+const curTpl=()=>{
+  const id=tplId[mode]||"";
+  if(id.startsWith("ref:")){const r=refs.find(x=>"ref:"+x.id===id); if(r)return {id,name:"Your photo",ref:r,guide:true,steps:REF_STEPS};}
+  return TEMPLATES[mode].find(t=>t.id===id)||TEMPLATES[mode][0];
+};
+let refMode="ghost", edgeCache={};
+function edgeOf(r){
+  if(edgeCache[r.id])return Promise.resolve(edgeCache[r.id]);
+  return new Promise(res=>{const im=new Image();im.onload=()=>{
+    const sc=540/Math.max(im.width,im.height),W=Math.round(im.width*sc),H=Math.round(im.height*sc),c=document.createElement("canvas");c.width=W;c.height=H;
+    const x=c.getContext("2d");x.drawImage(im,0,0,W,H);const d=x.getImageData(0,0,W,H),p=d.data,g=new Float32Array(W*H);
+    for(let i=0;i<W*H;i++)g[i]=.3*p[i*4]+.59*p[i*4+1]+.11*p[i*4+2];
+    const o=x.createImageData(W,H),q=o.data;
+    for(let y=1;y<H-1;y++)for(let xx=1;xx<W-1;xx++){const i=y*W+xx;
+      const gx=g[i-W+1]+2*g[i+1]+g[i+W+1]-g[i-W-1]-2*g[i-1]-g[i+W-1], gy=g[i+W-1]+2*g[i+W]+g[i+W+1]-g[i-W-1]-2*g[i-W]-g[i-W+1];
+      const a=Math.min(255,Math.max(0,(Math.hypot(gx,gy)-60)*2.2)); q[i*4]=255;q[i*4+1]=255;q[i*4+2]=255;q[i*4+3]=a;}
+    x.putImageData(o,0,0); edgeCache[r.id]=c.toDataURL("image/png"); res(edgeCache[r.id]);};im.src=r.data;});
+}
+async function applyRef(){
+  const T=curTpl(), img=$("refImg");
+  if(!T.ref){img.hidden=true;$("refBar").hidden=true;return}
+  img.src = refMode==="edge" ? await edgeOf(T.ref) : T.ref.data;
+  img.style.opacity=refMode==="edge"?.9:$("refOp").value/100;
+  img.hidden=false; $("refBar").hidden=false;
+  $("refGhost").setAttribute("aria-pressed",refMode==="ghost"); $("refEdge").setAttribute("aria-pressed",refMode==="edge"); $("refOp").hidden=refMode==="edge";
+}
+$("refGhost").onclick=()=>{refMode="ghost";applyRef()};
+$("refEdge").onclick=()=>{refMode="edge";applyRef()};
+$("refOp").oninput=()=>{ if(refMode==="ghost")$("refImg").style.opacity=$("refOp").value/100 };
+$("refDel").onclick=()=>{ const T=curTpl(); if(!T.ref)return; refs=refs.filter(r=>r!==T.ref); saveRefs(); tplId[mode]=TEMPLATES[mode][0].id; try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{}; renderTpl(); applyRef(); };
+$("refFile").onchange=e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f)return;
+  const u=URL.createObjectURL(f), im=new Image();
+  im.onload=()=>{ const sc=Math.min(1,1080/Math.max(im.naturalWidth,im.naturalHeight)), c=document.createElement("canvas");
+    c.width=Math.round(im.naturalWidth*sc); c.height=Math.round(im.naturalHeight*sc); c.getContext("2d").drawImage(im,0,0,c.width,c.height); URL.revokeObjectURL(u);
+    const r={id:Date.now(),data:c.toDataURL("image/jpeg",.78)}; refs.unshift(r); if(refs.length>8)refs.length=8; saveRefs();
+    tplId[mode]="ref:"+r.id; try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{}; refMode="ghost"; renderTpl(); applyRef(); showSetup(); };
+  im.onerror=()=>toast("That picture couldn't be opened. Try a screenshot of it instead.");
+  im.src=u;
+};
 const ICON={plate:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/>',ellipse:'<ellipse cx="10" cy="12" rx="8" ry="4.5"/>',
   glass:'<path d="M6 3h8l-1 14H7z"/>',box:'<rect x="4" y="5" width="12" height="10" rx="1"/>',
   half:'<circle cx="10" cy="6" r="3.2"/><path d="M3 19c0-5 3-8 7-8s7 3 7 8"/>',full:'<circle cx="10" cy="3.5" r="2.3"/><path d="M7 8h6v6h-1v5H8v-5H7z"/>',
@@ -240,11 +299,18 @@ const ICON={plate:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/
   land:'<path d="M2 13h16M4 13l4-5 3 3 2-2 3 4"/>'};
 function renderTpl(){
   const box=$("tpl"); box.innerHTML="";
+  const add=document.createElement("button"); add.className="addPhoto"; add.textContent="＋ From photo"; add.onclick=()=>$("refFile").click(); box.append(add);
+  for(const r of refs){
+    const b=document.createElement("button"); b.className="refBtn"; const on=tplId[mode]==="ref:"+r.id; b.setAttribute("aria-pressed",on);
+    const im=document.createElement("img"); im.src=r.data; im.alt=""; b.append(im," Photo");
+    b.onclick=()=>{tplId[mode]="ref:"+r.id;try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{};renderTpl();applyRef();showSetup()};
+    box.append(b); if(on)requestAnimationFrame(()=>b.scrollIntoView({inline:"center",block:"nearest"}));
+  }
   for(const t of TEMPLATES[mode]){
     const b=document.createElement("button"); b.setAttribute("aria-pressed",t===curTpl());
     b.innerHTML=`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">${ICON[t.shape||"land"]}</svg>`;
     b.append(t.name);
-    b.onclick=()=>{tplId[mode]=t.id;try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{};renderTpl();showSetup()};
+    b.onclick=()=>{tplId[mode]=t.id;try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{};renderTpl();applyRef();showSetup()};
     box.append(b);
     if(t===curTpl())requestAnimationFrame(()=>b.scrollIntoView({inline:"center",block:"nearest"}));
   }
@@ -259,7 +325,7 @@ function showSetup(){
 $("setupOk").onclick=()=>{$("setup").hidden=true;clearTimeout(setupTimer)};
 
 /* ---------- Modes ---------- */
-function setMode(m){mode=m;try{localStorage.setItem("sc-mode",m)}catch{}document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===m));renderTpl()}
+function setMode(m){mode=m;try{localStorage.setItem("sc-mode",m)}catch{}document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===m));renderTpl();applyRef()}
 document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 setMode(mode);
 function setVoice(on){voiceOn=on;try{localStorage.setItem("sc-voice",on?"1":"0")}catch{}$("voice").setAttribute("aria-pressed",on);$("voice").textContent=on?"🔊 Voice":"🔈 Voice"}

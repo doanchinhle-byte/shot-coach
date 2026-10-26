@@ -280,7 +280,9 @@ async function startCam(){
 $("go").onclick=async()=>{
   // iOS needs tilt permission from a tap
   try{ if(typeof DeviceOrientationEvent!=="undefined"&&DeviceOrientationEvent.requestPermission){await DeviceOrientationEvent.requestPermission()} }catch{}
+  try{ if(typeof DeviceMotionEvent!=="undefined"&&DeviceMotionEvent.requestPermission){await DeviceMotionEvent.requestPermission()} }catch{}
   window.addEventListener("deviceorientation",onTilt);
+  window.addEventListener("devicemotion",onMotion);
   try{ await startCam(); $("start").hidden=true; loop(); loadDetector(); showSetup(); }
   catch(e){ $("err").hidden=false; $("err").textContent= e.name==="NotAllowedError"
       ? "Camera blocked. In Settings → Safari → Camera, choose Allow, then reload this page."
@@ -305,6 +307,14 @@ $("light").onclick=async()=>{
   if(facing!=="user"){ try{ await stream.getVideoTracks()[0].applyConstraints({advanced:[{torch:lightOn}]}) }catch{ lightOn=false } }
   refreshLight();
 };
+
+/* ---------- Hand shake from the motion sensor (deg/s, smoothed) ---------- */
+let gyro=null, gyroT=0;
+function onMotion(e){
+  const r=e.rotationRate; if(!r||r.alpha==null)return;
+  const mag=Math.hypot(r.alpha||0,r.beta||0,r.gamma||0);
+  gyro = gyro==null ? mag : gyro*.75+mag*.25; gyroT=performance.now();
+}
 
 /* ---------- Tilt (level) ---------- */
 let tilt=null; // {roll, flat}
@@ -364,9 +374,14 @@ function coach(m,subj,mp){
   const tips=[]; // [priority, text, sub, level]
   const meters=[];
   // steadiness
-  const sh=m.shake; meters.push([sh<2.5?"ok":sh<6?"mid":"no", sh<2.5?"steady":"moving"]);
-  if(sh>6) tips.push([10,"Hold still","Use both hands, elbows in","bad"]);
-  else if(sh>3.2) tips.push([6,"Steady…","Pause a second before shooting","warn"]);
+  // steadiness: motion sensor when available (real hand shake), else frame-to-frame change
+  let shakeLvl;
+  if(gyro!=null&&performance.now()-gyroT<1000) shakeLvl = gyro<14?0:gyro<30?1:2;
+  else shakeLvl = m.shake<5?0:m.shake<10?1:2;
+  steadyNow = shakeLvl===0;
+  meters.push([["ok","mid","no"][shakeLvl], ["steady","a bit shaky","moving"][shakeLvl]]);
+  if(shakeLvl===2) tips.push([10,"Hold still","Use both hands, elbows in","bad"]);
+  else if(shakeLvl===1) tips.push([6,"Steady…","Pause a second before shooting","warn"]);
   // light
   const ev=m.ev, evs=(ev>=0?"+":"−")+Math.abs(ev).toFixed(1);
   meters.push([Math.abs(ev)<.6?"ok":Math.abs(ev)<1.2?"mid":"no","EV "+evs]);
@@ -409,10 +424,11 @@ function coach(m,subj,mp){
     else if(Math.abs(dy)>.07) tips.push([4, dy>0?"Tilt phone down":"Tilt phone up","Line up with the outline","warn"]);
     else tplMatch=true;
   }else if(T.box&&!T.guide&&detector){
-    tips.push([1, T.person?(T.person>2?"Find your group":T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
+    tips.push([4, T.person?(T.person>2?"Find your group":T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
   }
   tips.sort((a,b)=>b[0]-a[0]);
-  return {tip:tips[0]||[0,"Looks good — shoot!","Tap the green button","ok"], meters};
+  const blocking=tips.filter(t=>t[0]>=4);
+  return {tip:blocking[0]||[0,"Looks good — shoot!",tips[0]?"Tip: "+tips[0][1]:"Tap the green button","ok"], meters};
 }
 
 /* ---------- Speech ---------- */
@@ -543,7 +559,7 @@ function loop(t=0){
 }
 
 /* ---------- Auto fix: white balance, levels, brightness, a little color ---------- */
-let lastEv=0, lastShake=0, fixOn=localStorage.getItem("sc-fix")!=="0";
+let steadyNow=false, lastEv=0, lastShake=0, fixOn=localStorage.getItem("sc-fix")!=="0";
 function autoFix(img){
   const d=img.data, n=d.length/4, step=Math.max(1,Math.floor(n/60000));
   let sr=0,sg=0,sb=0,cnt=0; const hist=new Uint32Array(256);
@@ -574,7 +590,7 @@ async function capture(open){
   if(!v.videoWidth)return;
   const W=v.videoWidth,H=v.videoHeight, c=document.createElement("canvas"); c.width=W; c.height=H;
   const x=c.getContext("2d",{willReadFrequently:true}); if(facing==="user"){x.translate(W,0);x.scale(-1,1)}
-  const night = lastEv<-.7 && lastShake<4;   // dark and steady: average several frames to cut grain
+  const night = lastEv<-.7 && steadyNow;   // dark and steady: average several frames to cut grain
   let img;
   if(night){
     $("busy").hidden=false; const N=6, acc=new Uint16Array(W*H*4);

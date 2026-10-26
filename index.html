@@ -33,7 +33,7 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .top .sp{flex:1}
 
 /* Tip banner */
-#tip{position:absolute;left:50%;top:calc(108px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-width:calc(100% - 32px);
+#tip{position:absolute;left:50%;bottom:calc(200px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100% - 32px);
   font-family:var(--display);font-weight:800;font-size:24px;line-height:1.15;text-align:center;text-wrap:balance;
   padding:10px 16px;border-radius:16px;background:rgba(0,0,0,.45);border:2px solid var(--warn);color:var(--fg);transition:border-color .2s}
 #tip.ok{border-color:var(--good);background:rgba(20,80,40,.75)}
@@ -50,7 +50,7 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #tpl button svg{width:20px;height:20px;flex:none}
 #tpl button[aria-pressed="true"]{border-color:var(--focus);color:var(--focus);background:rgba(40,32,0,.75)}
 /* Setup card */
-#setup{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(200px + env(safe-area-inset-bottom,0px));width:min(360px,calc(100% - 32px));
+#setup{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));width:min(360px,calc(100% - 32px));
   background:rgba(14,16,18,.92);border:1px solid var(--focus);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 #setup h2{margin:0;font-family:var(--display);font-weight:800;font-size:20px;color:var(--focus)}
 #setup ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px;font-size:15px;line-height:1.35}
@@ -139,7 +139,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <h1>Shot <span>Coach</span></h1>
   <p>Point your camera. Big tips appear live and tell you exactly what to move. When the button turns <b style="color:var(--good)">green</b>, shoot.</p>
   <button id="go">Start camera</button>
-  <p style="font-size:12px;opacity:.5">version 7</p>
+  <p style="font-size:12px;opacity:.5">version 8</p>
   <p id="err" hidden></p>
 </div>
 
@@ -330,14 +330,17 @@ function onTilt(e){
 }
 
 /* ---------- Object detector (on-device, optional) ---------- */
-let detector=null, dets=[], lastDet=0;
+let detector=null, faceDet=null, dets=[], faces=[], lastDet=0, lastSeen=0, detStart=0;
 async function loadDetector(){
   try{
     const {FilesetResolver,ObjectDetector}=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
     const files=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
     const opts=d=>({baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite",delegate:d},
       runningMode:"VIDEO",scoreThreshold:.35,maxResults:5});
-    try{detector=await ObjectDetector.createFromOptions(files,opts("GPU"))}catch{detector=await ObjectDetector.createFromOptions(files,opts("CPU"))}
+    detector=await ObjectDetector.createFromOptions(files,opts("CPU")); detStart=performance.now();
+    try{ const {FaceDetector}=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+      faceDet=await FaceDetector.createFromOptions(files,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",delegate:"CPU"},runningMode:"VIDEO",minDetectionConfidence:.5});
+    }catch{faceDet=null}
   }catch(e){detector=null}
 }
 const IGNORE=new Set(["dining table","chair","couch","bed","tv","refrigerator","oven","sink","toilet"]);
@@ -432,11 +435,11 @@ function coach(m,subj,mp){
   const wait=[];
   if(shakeLvl===2||(shakeLvl===1&&ev<-.6)) wait.push("steady hands");
   if(ev<-2||ev>1.6) wait.push("better light");
-  if(tilt&&!tilt.flat&&tilt.roll!=null&&Math.abs(tilt.roll)>(mode==="place"?3:6)) wait.push("phone straight");
+  if(tilt&&!tilt.flat&&tilt.roll!=null&&Math.abs(tilt.roll)>(mode==="place"?3:mode==="people"?12:6)) wait.push("phone straight");
   if(T.flat&&tilt&&(!tilt.flat||Math.max(Math.abs(tilt.b),Math.abs(tilt.g))>10)) wait.push("phone flat");
   if(T.box&&!T.guide){
     if(subj&&mp){ if(!looseFit) wait.push("subject in outline"); }
-    else if(T.person&&detector) wait.push(T.person>1?"people in view":"a person in view");
+    else if(T.person&&detector&&performance.now()-lastSeen<5000&&performance.now()-detStart>3000) wait.push(T.person>1?"people in view":"a person in view");
   }
   autoWait=wait;
   tips.sort((a,b)=>b[0]-a[0]);
@@ -537,6 +540,15 @@ function pickSubject(){
     (lab==="person"?people:objs).push(o);
   }
   const union=(arr,lab)=>{const x=Math.min(...arr.map(o=>o.x)),y=Math.min(...arr.map(o=>o.y)),r=Math.max(...arr.map(o=>o.x+o.w)),b=Math.max(...arr.map(o=>o.y+o.h));return{x,y,w:r-x,h:b-y,a:(r-x)*(b-y),label:lab}};
+  if(want&&faces.length){
+    const vh=v.videoHeight||1;
+    for(const f of faces){ const b=f.boundingBox; if(!b)continue;
+      const w=b.width*2.7, x=b.originX+b.width/2-w/2, y=b.originY-b.height*.45;
+      const fromFace={x,y,w,h:vh-y,a:w*(vh-y),label:"person"};
+      // use the face-based box unless a real body box already covers this face
+      if(!people.some(p=>b.originX>p.x-10&&b.originX+b.width<p.x+p.w+10&&b.originY>p.y-10&&b.originY<p.y+p.h))people.push(fromFace);
+    }
+  }
   people.sort((p,q)=>q.a-p.a);
   if(want){
     if(!people.length)return null;
@@ -552,7 +564,12 @@ function pickSubject(){
 function loop(t=0){
   requestAnimationFrame(loop);
   if(t-lastT<120||v.readyState<2)return; lastT=t;
-  if(detector&&t-lastDet>350){ try{dets=detector.detectForVideo(v,t).detections||[]}catch{dets=[]} lastDet=t; }
+  if(detector&&t-lastDet>350){
+    try{dets=detector.detectForVideo(v,t).detections||[]}catch{dets=[]}
+    if(faceDet){ try{faces=faceDet.detectForVideo(v,t+1).detections||[]}catch{faces=[]} }
+    if(dets.length||faces.length)lastSeen=performance.now();
+    lastDet=t;
+  }
   const m=measure(); if(!m)return; lastEv=m.ev; lastShake=m.shake;
   const mp=mapper(m.vw,m.vh), subj=pickSubject();
   const {tip,meters}=coach(m,subj,mp);

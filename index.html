@@ -51,6 +51,23 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #tpl .addPhoto{border-style:dashed;border-color:var(--focus);color:var(--focus)}
 #tpl .refBtn{padding:3px 8px 3px 3px}
 #tpl .refBtn img{width:30px;height:30px;object-fit:cover;border-radius:6px}
+#pro{position:absolute;inset:0;z-index:20;background:#0e1012;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#pro header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+#pro h2{margin:0;font-family:var(--display);font-weight:800;font-size:26px}
+#pro h2 span{color:var(--focus)}
+#pro .sub{color:var(--dim);font-size:14px;margin:0 0 14px}
+#proClose{font:600 15px/1 -apple-system,system-ui,sans-serif;color:var(--fg);background:#2a2e33;border:0;border-radius:999px;padding:10px 16px}
+#proGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.pcard{background:#1a1d21;border:1px solid #2b3036;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.pcard img{width:100%;aspect-ratio:3/4;object-fit:cover;background:#222;display:block}
+.pcard .b{padding:10px;display:flex;flex-direction:column;gap:6px;flex:1}
+.pcard h3{margin:0;font-size:15px;line-height:1.25}
+.pcard p{margin:0;font-size:13px;line-height:1.35;color:var(--dim)}
+.pcard small{font-size:11px;color:rgba(255,255,255,.45)}
+.pcard small a{color:inherit}
+.pcard button{margin-top:auto;font:700 14px/1 -apple-system,system-ui,sans-serif;background:var(--focus);color:#141008;border:0;border-radius:999px;padding:10px}
+#tpl .proBtn{border-color:var(--focus);color:#141008;background:var(--focus)}
 #refBar{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));display:flex;gap:6px;align-items:center;
   background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 8px;max-width:calc(100% - 24px)}
 #refBar button{font:600 13px/1 -apple-system,system-ui,sans-serif;color:var(--fg);background:transparent;border:0;border-radius:999px;padding:8px 10px}
@@ -142,6 +159,11 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
     <button id="refDel" aria-label="Remove this photo template">🗑</button>
   </div>
   <input type="file" id="refFile" accept="image/*" hidden>
+  <div id="pro" hidden>
+    <header><h2>Pro <span>examples</span></h2><button id="proClose">Close</button></header>
+    <p class="sub" id="proSub">Pick a photo by a professional photographer. It appears see-through on your camera so you can copy the angle and position.</p>
+    <div id="proGrid"></div>
+  </div>
   <div id="setup" hidden><h2 id="setupT"></h2><ol id="setupL"></ol><button id="setupOk">Got it</button></div>
 
   <div class="dock">
@@ -155,7 +177,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <h1>Shot <span>Coach</span></h1>
   <p>Point your camera. Big tips appear live and tell you exactly what to move. When the button turns <b style="color:var(--good)">green</b>, shoot.</p>
   <button id="go">Start camera</button>
-  <p style="font-size:12px;opacity:.5">version 9</p>
+  <p style="font-size:12px;opacity:.5">version 10</p>
   <p id="err" hidden></p>
 </div>
 
@@ -242,6 +264,46 @@ const TEMPLATES={
 };
 let tplId={};
 try{tplId=JSON.parse(localStorage.getItem("sc-tpl")||"{}")}catch{}
+/* Pro examples: free-license photos from professional photographers on Unsplash (unsplash.com/license) */
+const U=id=>"https://images.unsplash.com/photo-"+id+"?w=1080&q=75&auto=format&fit=crop";
+const PRO={
+  food:[
+    {img:U("1643250096514-736909e95a80"),t:"Iced coffee on the counter",tip:"Phone at the glass's height. Side light shows the coffee-and-milk layers.",by:"pariwat pannium",url:"https://unsplash.com/photos/y2Dfk2Kt89o"},
+    {img:U("1781682696339-f8aea6ea8b16"),t:"Iced coffee on a patterned rug",tip:"A textured surface behind the cup makes a simple drink look styled.",by:"You Le",url:"https://unsplash.com/photos/tJlrhxJgf0U"},
+    {img:U("1677011454858-8ecb6d4e6ce0"),t:"Pho close-up",tip:"Get close so the bowl fills the frame; steam and herbs show freshness.",by:"Crystal Jo",url:"https://unsplash.com/photos/7R-S7x8gl4k"},
+    {img:U("1679279726940-be5ce80c632c"),t:"Chopsticks over noodles",tip:"A hand in the shot adds action. Catch the noodles mid-lift.",by:"Xavier Chng",url:"https://unsplash.com/photos/qguuVUzsavg"},
+    {img:U("1690983322857-0811d47fedfc"),t:"Top-down table spread",tip:"Phone flat above the table, with space left empty for text.",by:"Sergey Kotenev",url:"https://unsplash.com/photos/l4U1u0bso6E"}],
+  product:[
+    {img:U("1700225195138-8d8b36dafcb1"),t:"Bottles on a dark set",tip:"Same-color background as the product looks premium. Light from one side.",by:"Mockup Free",url:"https://unsplash.com/photos/LLu7qtWib8U"},
+    {img:U("1643250096514-736909e95a80"),t:"Drink as a product shot",tip:"Clean counter, one item, phone at its height.",by:"pariwat pannium",url:"https://unsplash.com/photos/y2Dfk2Kt89o"}],
+  people:[
+    {img:U("1750044010283-bcfab7777e26"),t:"Portrait in natural sunlight",tip:"Sun from the side, not straight on. Relaxed pose, eyes on the top grid line.",by:"Jacob Mitani",url:"https://unsplash.com/photos/FCrhYgBCFac"},
+    {img:U("1414016642750-7fdd78dc33d9"),t:"Sitting with a warm drink",tip:"Hands holding a cup gives the pose something to do and feels natural.",by:"Julian Bialowas",url:"https://unsplash.com/photos/ilkTnuMunP8"},
+    {img:U("1679279726940-be5ce80c632c"),t:"Eating moment",tip:"Shoot real moments at the table, from the diner's side.",by:"Xavier Chng",url:"https://unsplash.com/photos/qguuVUzsavg"}],
+  place:[
+    {img:U("1768812141741-4ee1bf3d9095"),t:"Café storefront with plants",tip:"Stand straight in front, phone level. Plants on both sides frame the door.",by:"Margo Evardson",url:"https://unsplash.com/photos/JQgWhib1FA0"}]
+};
+function openPro(){
+  const g=$("proGrid"); g.innerHTML=""; $("proSub").firstChild&&0;
+  const names={food:"Food & drinks",product:"Products",people:"People",place:"Places"};
+  $("pro").querySelector("h2").innerHTML='Pro <span>examples</span> · '+names[mode];
+  for(const ex of PRO[mode]){
+    const c=document.createElement("div"); c.className="pcard";
+    const im=document.createElement("img"); im.src=ex.img; im.alt=ex.t; im.loading="lazy";
+    im.onerror=()=>{im.alt="Photo didn't load";};
+    const b=document.createElement("div"); b.className="b";
+    const h=document.createElement("h3"); h.textContent=ex.t;
+    const p=document.createElement("p"); p.textContent=ex.tip;
+    const sm=document.createElement("small"); sm.innerHTML='Photo: <a target="_blank" rel="noopener"></a> / Unsplash'; const a=sm.querySelector("a"); a.href=ex.url; a.textContent=ex.by;
+    const use=document.createElement("button"); use.textContent="Use as template";
+    use.onclick=()=>{ let r=refs.find(x=>x.data===ex.img); if(!r){r={id:Date.now(),data:ex.img,pro:ex.t}; refs.unshift(r); if(refs.length>8)refs.length=8; saveRefs();}
+      tplId[mode]="ref:"+r.id; try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{}; refMode="ghost"; $("pro").hidden=true; renderTpl(); applyRef(); toast(ex.t+"<br><br>"+ex.tip,5000); };
+    b.append(h,p,sm,use); c.append(im,b); g.append(c);
+  }
+  $("pro").hidden=false; $("pro").scrollTop=0;
+}
+$("proClose").onclick=()=>{$("pro").hidden=true};
+
 /* Photo templates: any picture, shown see-through over the camera to copy its framing */
 let refs=[]; try{refs=JSON.parse(localStorage.getItem("sc-refs")||"[]")}catch{}
 function saveRefs(){ for(;;){ try{localStorage.setItem("sc-refs",JSON.stringify(refs));return}catch{ if(refs.length<=1)return; refs.pop(); } } }
@@ -254,7 +316,7 @@ const curTpl=()=>{
 let refMode="ghost", edgeCache={};
 function edgeOf(r){
   if(edgeCache[r.id])return Promise.resolve(edgeCache[r.id]);
-  return new Promise(res=>{const im=new Image();im.onload=()=>{
+  return new Promise(res=>{const im=new Image();im.crossOrigin="anonymous";im.onerror=()=>res(r.data);im.onload=()=>{ try{
     const sc=540/Math.max(im.width,im.height),W=Math.round(im.width*sc),H=Math.round(im.height*sc),c=document.createElement("canvas");c.width=W;c.height=H;
     const x=c.getContext("2d");x.drawImage(im,0,0,W,H);const d=x.getImageData(0,0,W,H),p=d.data,g=new Float32Array(W*H);
     for(let i=0;i<W*H;i++)g[i]=.3*p[i*4]+.59*p[i*4+1]+.11*p[i*4+2];
@@ -262,7 +324,8 @@ function edgeOf(r){
     for(let y=1;y<H-1;y++)for(let xx=1;xx<W-1;xx++){const i=y*W+xx;
       const gx=g[i-W+1]+2*g[i+1]+g[i+W+1]-g[i-W-1]-2*g[i-1]-g[i+W-1], gy=g[i+W-1]+2*g[i+W]+g[i+W+1]-g[i-W-1]-2*g[i-W]-g[i-W+1];
       const a=Math.min(255,Math.max(0,(Math.hypot(gx,gy)-60)*2.2)); q[i*4]=255;q[i*4+1]=255;q[i*4+2]=255;q[i*4+3]=a;}
-    x.putImageData(o,0,0); edgeCache[r.id]=c.toDataURL("image/png"); res(edgeCache[r.id]);};im.src=r.data;});
+    x.putImageData(o,0,0); edgeCache[r.id]=c.toDataURL("image/png"); res(edgeCache[r.id]);
+    }catch{ toast("Outline isn't available for this photo. Showing the photo instead.",3500); refMode="ghost"; res(r.data); } };im.src=r.data;});
 }
 async function applyRef(){
   const T=curTpl(), img=$("refImg");
@@ -299,10 +362,12 @@ const ICON={plate:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/
   land:'<path d="M2 13h16M4 13l4-5 3 3 2-2 3 4"/>'};
 function renderTpl(){
   const box=$("tpl"); box.innerHTML="";
-  const add=document.createElement("button"); add.className="addPhoto"; add.textContent="＋ From photo"; add.onclick=()=>$("refFile").click(); box.append(add);
+  const add=document.createElement("button"); add.className="addPhoto"; add.textContent="＋ From photo"; add.onclick=()=>$("refFile").click();
+  const pro=document.createElement("button"); pro.className="proBtn"; pro.textContent="★ Pro examples"; pro.onclick=openPro;
+  box.append(pro,add);
   for(const r of refs){
     const b=document.createElement("button"); b.className="refBtn"; const on=tplId[mode]==="ref:"+r.id; b.setAttribute("aria-pressed",on);
-    const im=document.createElement("img"); im.src=r.data; im.alt=""; b.append(im," Photo");
+    const im=document.createElement("img"); im.src=r.data; im.alt=""; b.append(im,r.pro?" Pro":" Photo");
     b.onclick=()=>{tplId[mode]="ref:"+r.id;try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{};renderTpl();applyRef();showSetup()};
     box.append(b); if(on)requestAnimationFrame(()=>b.scrollIntoView({inline:"center",block:"nearest"}));
   }

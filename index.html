@@ -139,6 +139,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <h1>Shot <span>Coach</span></h1>
   <p>Point your camera. Big tips appear live and tell you exactly what to move. When the button turns <b style="color:var(--good)">green</b>, shoot.</p>
   <button id="go">Start camera</button>
+  <p style="font-size:12px;opacity:.5">version 7</p>
   <p id="err" hidden></p>
 </div>
 
@@ -266,7 +267,7 @@ $("voice").onclick=()=>{setVoice(!voiceOn);if(voiceOn)say("Voice tips on",true)}
 setVoice(voiceOn);
 
 /* ---------- Auto shoot ---------- */
-let autoOn=localStorage.getItem("sc-auto")==="1", readySince=0, lastAutoShot=0;
+let autoOn=localStorage.getItem("sc-auto")==="1", readySince=0, lastAutoShot=-1e9;
 function setAuto(on){autoOn=on;try{localStorage.setItem("sc-auto",on?"1":"0")}catch{}$("auto").setAttribute("aria-pressed",on);$("auto").textContent=on?"Auto shoot ON":"Auto shoot";readySince=0;$("count").hidden=true}
 $("auto").onclick=()=>{setAuto(!autoOn);say(autoOn?"Auto shoot on. Line it up and hold still.":"Auto shoot off",true)};
 setAuto(autoOn);
@@ -404,7 +405,7 @@ function coach(m,subj,mp){
     }
   }
   // template matching: compare the detected subject with the ghost outline
-  const T=curTpl(); tplMatch=false;
+  const T=curTpl(); tplMatch=false; let looseFit=true;
   if(T.flat&&tilt&&!tilt.flat) tips.push([4,"Hold the phone flat","This template is shot from straight above","warn"]);
   if(T.box&&!T.guide&&subj&&mp){
     const W=mp.W,H=mp.H, g=T.box(W,H);
@@ -416,6 +417,7 @@ function coach(m,subj,mp){
     else { size=Math.sqrt((sw*shh)/(g.w*(gy1-g.y))); dy=((y0+y1)/2-(g.y+gy1)/2)/H; }
     const dx=((x0+x1)/2-(g.x+g.x+g.w)/2)/W;
     const who=T.person?(T.person>1?"them":"them"):(mode==="food"?"it":"it");
+    looseFit = size>.65&&size<1.5&&Math.abs(dx)<.14&&Math.abs(dy)<.14;
     const fitPct=Math.max(0,100-Math.round((Math.abs(size-1)*120+Math.abs(dx)*250+Math.abs(dy)*250)));
     meters.push([fitPct>80?"ok":fitPct>55?"mid":"no","match "+fitPct+"%"]);
     if(size<.78) tips.push([5,"Step closer","Fill the yellow outline","warn"]);
@@ -424,8 +426,19 @@ function coach(m,subj,mp){
     else if(Math.abs(dy)>.07) tips.push([4, dy>0?"Tilt phone down":"Tilt phone up","Line up with the outline","warn"]);
     else tplMatch=true;
   }else if(T.box&&!T.guide&&detector){
-    tips.push([4, T.person?(T.person>2?"Find your group":T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
+    tips.push([T.person?4:2, T.person?(T.person>2?"Find your group":T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
   }
+  // Auto shoot uses looser "good enough" rules than the coaching banner
+  const wait=[];
+  if(shakeLvl===2||(shakeLvl===1&&ev<-.6)) wait.push("steady hands");
+  if(ev<-2||ev>1.6) wait.push("better light");
+  if(tilt&&!tilt.flat&&tilt.roll!=null&&Math.abs(tilt.roll)>(mode==="place"?3:6)) wait.push("phone straight");
+  if(T.flat&&tilt&&(!tilt.flat||Math.max(Math.abs(tilt.b),Math.abs(tilt.g))>10)) wait.push("phone flat");
+  if(T.box&&!T.guide){
+    if(subj&&mp){ if(!looseFit) wait.push("subject in outline"); }
+    else if(T.person&&detector) wait.push(T.person>1?"people in view":"a person in view");
+  }
+  autoWait=wait;
   tips.sort((a,b)=>b[0]-a[0]);
   const blocking=tips.filter(t=>t[0]>=4);
   return {tip:blocking[0]||[0,"Looks good — shoot!",tips[0]?"Tip: "+tips[0][1]:"Tap the green button","ok"], meters};
@@ -514,7 +527,7 @@ function drawGhost(shape,b,ok){
 }
 
 /* ---------- Main loop ---------- */
-let lastT=0, lastTip="", tplMatch=false;
+let lastT=0, lastTip="", tplMatch=false, autoWait=["start"];
 function pickSubject(){
   const T=curTpl(), want=T.person||0, people=[], objs=[];
   for(const d of dets){
@@ -547,9 +560,10 @@ function loop(t=0){
   const el=$("tip"); const key=tip[1];
   if(key!==lastTip){ el.className=tip[3]==="ok"?"ok":tip[3]==="bad"?"bad":""; el.innerHTML=""; el.append(tip[1]); const s=document.createElement("small"); s.textContent=tip[2]; el.append(s); lastTip=key; if($("setup").hidden)say(tip[1]); }
   const ready=tip[3]==="ok";
+  if(autoOn){ const w=autoWait.length?"Auto waits for: "+autoWait.join(", "):"Auto: ready, hold still…"; const sm=$("tip").querySelector("small"); if(sm&&sm.textContent!==w){sm.textContent=w} }
   $("shoot").classList.toggle("ready",ready);
   // Auto shoot: stay "ready" for a 3-2-1 countdown (1.5 s), then take the photo
-  if(autoOn&&ready&&$("review").hidden&&$("setup").hidden&&t-lastAutoShot>4000){
+  if(autoOn&&!autoWait.length&&$("review").hidden&&$("setup").hidden&&t-lastAutoShot>4000){
     if(!readySince)readySince=t;
     const left=3-Math.floor((t-readySince)/500);
     if(left<=0){ readySince=0; lastAutoShot=t; $("count").hidden=true; capture(false); }

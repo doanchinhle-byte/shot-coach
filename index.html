@@ -88,6 +88,12 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 #count{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--display);font-weight:800;font-size:120px;line-height:1;
   color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);pointer-events:none}
+#stage.ring{background:#fff}
+#stage.ring video,#stage.ring #ov{top:17%;left:13%;width:74%;height:56%;border-radius:18px}
+#busy{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 18px/1.3 -apple-system,system-ui,sans-serif;text-align:center;
+  background:rgba(0,0,0,.7);padding:14px 20px;border-radius:14px;pointer-events:none}
+#review .row.small button{font-size:14px;padding:10px 16px;background:#2a2e33;color:#fff}
+#review .row.small button[aria-pressed="true"]{background:var(--good);color:#0b1a10}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s}
 #flash.on{opacity:.85;transition:none}
 #badge{position:absolute;top:-6px;right:-6px;min-width:22px;height:22px;border-radius:11px;background:var(--focus);color:#141008;
@@ -110,6 +116,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
     <button data-mode="place" aria-pressed="false">Place</button>
     <span class="sp"></span>
     <button id="auto" aria-pressed="false">Auto shoot</button>
+    <button id="light" aria-pressed="false" hidden>💡 Light</button>
     <button id="voice" aria-pressed="false">🔈 Voice</button>
   </div>
 
@@ -117,6 +124,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <div id="meters"></div>
   <div id="count" hidden></div>
   <div id="flash"></div>
+  <div id="busy" hidden>Night mode<br>hold still…</div>
   <div id="tpl" role="group" aria-label="Framing templates"></div>
   <div id="setup" hidden><h2 id="setupT"></h2><ol id="setupL"></ol><button id="setupOk">Got it</button></div>
 
@@ -137,6 +145,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 <div id="review" hidden>
   <img id="shot" alt="Your photo">
   <div class="grid" id="strip"></div>
+  <div class="row small"><button id="fixBtn" aria-pressed="true">✨ Auto fix ON</button><button id="cmpBtn">Hold: before</button></div>
   <p id="saveHint">Tap Save, then “Save Image” to put it in Photos.</p>
   <div class="row"><button id="backBtn">Keep shooting</button><button id="saveBtn">Save</button></div>
 </div>
@@ -227,7 +236,7 @@ setAuto(autoOn);
 async function startCam(){
   if(stream)stream.getTracks().forEach(t=>t.stop());
   stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:facing,width:{ideal:1920},height:{ideal:1440}}});
-  v.srcObject=stream; await v.play();
+  v.srcObject=stream; await v.play(); refreshLight();
 }
 $("go").onclick=async()=>{
   // iOS needs tilt permission from a tap
@@ -238,7 +247,22 @@ $("go").onclick=async()=>{
       ? "Camera blocked. In Settings → Safari → Camera, choose Allow, then reload this page."
       : "Couldn't open the camera. Open this page in Safari and try again."; }
 };
-$("flip").onclick=async()=>{facing=facing==="environment"?"user":"environment";try{await startCam()}catch{}};
+$("flip").onclick=async()=>{facing=facing==="environment"?"user":"environment";lightOn=false;try{await startCam()}catch{}};
+
+/* ---------- Light ---------- */
+let lightOn=false, torchOK=false;
+function lightAvail(){ return facing==="user"||torchOK }
+function refreshLight(){
+  const tr=stream?.getVideoTracks?.()[0]; torchOK=!!tr?.getCapabilities?.().torch;
+  $("light").hidden=!lightAvail(); $("light").setAttribute("aria-pressed",lightOn);
+  $("light").textContent=lightOn?"💡 Light ON":"💡 Light";
+  $("stage").classList.toggle("ring",lightOn&&facing==="user");
+}
+$("light").onclick=async()=>{
+  lightOn=!lightOn;
+  if(facing!=="user"){ try{ await stream.getVideoTracks()[0].applyConstraints({advanced:[{torch:lightOn}]}) }catch{ lightOn=false } }
+  refreshLight();
+};
 
 /* ---------- Tilt (level) ---------- */
 let tilt=null; // {roll, flat}
@@ -304,7 +328,7 @@ function coach(m,subj,mp){
   // light
   const ev=m.ev, evs=(ev>=0?"+":"−")+Math.abs(ev).toFixed(1);
   meters.push([Math.abs(ev)<.6?"ok":Math.abs(ev)<1.2?"mid":"no","EV "+evs]);
-  if(ev<-1.1) tips.push([9,"Too dark","Move toward a window or turn on lights","bad"]);
+  if(ev<-1.1) tips.push([9,"Too dark", lightAvail()&&!lightOn?"Tap 💡 Light, or move toward a window":"Move toward a window — night mode will help","bad"]);
   else if(ev<-.6) tips.push([5,"A bit dark","Tap your subject, slide finger up","warn"]);
   if(ev>1.1||m.hi>.12) tips.push([9,"Too bright","Turn away from the sun or lamp","bad"]);
   else if(ev>.6) tips.push([5,"A bit bright","Tap your subject, slide finger down","warn"]);
@@ -438,7 +462,7 @@ function loop(t=0){
   requestAnimationFrame(loop);
   if(t-lastT<120||v.readyState<2)return; lastT=t;
   if(detector&&t-lastDet>350){ try{dets=detector.detectForVideo(v,t).detections||[]}catch{dets=[]} lastDet=t; }
-  const m=measure(); if(!m)return;
+  const m=measure(); if(!m)return; lastEv=m.ev; lastShake=m.shake;
   const mp=mapper(m.vw,m.vh), subj=pickSubject();
   const {tip,meters}=coach(m,subj,mp);
   draw(mp,subj);
@@ -456,37 +480,79 @@ function loop(t=0){
   const mt=$("meters"); mt.innerHTML=""; for(const [c,txt] of meters){const s=document.createElement("span");s.className="m "+c;s.textContent=txt;mt.append(s)}
 }
 
+/* ---------- Auto fix: white balance, levels, brightness, a little color ---------- */
+let lastEv=0, lastShake=0, fixOn=localStorage.getItem("sc-fix")!=="0";
+function autoFix(img){
+  const d=img.data, n=d.length/4, step=Math.max(1,Math.floor(n/60000));
+  let sr=0,sg=0,sb=0,cnt=0; const hist=new Uint32Array(256);
+  for(let i=0;i<n;i+=step){const k=i*4,r=d[k],g=d[k+1],b=d[k+2];sr+=r;sg+=g;sb+=b;cnt++;hist[(.2126*r+.7152*g+.0722*b)|0]++}
+  const mr=sr/cnt,mg=sg/cnt,mb=sb/cnt,gray=(mr+mg+mb)/3;
+  // white balance: gentle (keeps warm food/cafe tones), stronger only for heavy color casts
+  const wb=mode==="food"?.4:.6, gain=c=>Math.min(1.3,Math.max(.8,1+(gray/Math.max(c,1)-1)*wb));
+  const gr=gain(mr),gg=gain(mg),gb=gain(mb);
+  const pct=q=>{let acc=0,t=q*cnt;for(let i=0;i<256;i++){acc+=hist[i];if(acc>=t)return i}return 255};
+  const lo=Math.min(pct(.005),40), hi=Math.max(pct(.995),170);
+  let mean=0; for(let i=0;i<256;i++)mean+=i*hist[i]; mean/=cnt;
+  const mN=Math.min(.95,Math.max(.03,(mean-lo)/(hi-lo)));
+  const gamma=Math.min(1.25,Math.max(.55,Math.log(.47)/Math.log(mN)));   // pull mid-tones toward normal brightness
+  const lut=new Uint8ClampedArray(256);
+  for(let i=0;i<256;i++){const x=Math.min(1,Math.max(0,(i-lo)/(hi-lo)));lut[i]=Math.round(255*Math.pow(x,gamma))}
+  const sat=mode==="food"?1.15:1.08;
+  for(let k=0;k<d.length;k+=4){
+    let r=lut[Math.min(255,d[k]*gr)|0],g=lut[Math.min(255,d[k+1]*gg)|0],b=lut[Math.min(255,d[k+2]*gb)|0];
+    const y=.2126*r+.7152*g+.0722*b; d[k]=y+(r-y)*sat; d[k+1]=y+(g-y)*sat; d[k+2]=y+(b-y)*sat;
+  }
+  return img;
+}
+
 /* ---------- Capture & save ---------- */
 const shots=[]; let sel=-1; // keeps up to 12 photos this session
+const nextFrame=()=>new Promise(r=>setTimeout(r,70));
 async function capture(open){
   if(!v.videoWidth)return;
-  const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
-  const x=c.getContext("2d"); if(facing==="user"){x.translate(c.width,0);x.scale(-1,1)} x.drawImage(v,0,0);
-  const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.92));
-  shots.push({blob,url:URL.createObjectURL(blob)}); if(shots.length>12){URL.revokeObjectURL(shots.shift().url)}
+  const W=v.videoWidth,H=v.videoHeight, c=document.createElement("canvas"); c.width=W; c.height=H;
+  const x=c.getContext("2d",{willReadFrequently:true}); if(facing==="user"){x.translate(W,0);x.scale(-1,1)}
+  const night = lastEv<-.7 && lastShake<4;   // dark and steady: average several frames to cut grain
+  let img;
+  if(night){
+    $("busy").hidden=false; const N=6, acc=new Uint16Array(W*H*4);
+    for(let f=0;f<N;f++){ x.drawImage(v,0,0); const dd=x.getImageData(0,0,W,H).data; for(let i=0;i<dd.length;i++)acc[i]+=dd[i]; if(f<N-1)await nextFrame(); }
+    img=x.getImageData(0,0,W,H); for(let i=0;i<acc.length;i++)img.data[i]=acc[i]/N;
+    x.setTransform(1,0,0,1,0,0); x.putImageData(img,0,0); $("busy").hidden=true;
+  }else{ x.drawImage(v,0,0); x.setTransform(1,0,0,1,0,0); }
+  const toBlob=()=>new Promise(r=>c.toBlob(r,"image/jpeg",.92));
+  const ob=await toBlob(), orig={blob:ob,url:URL.createObjectURL(ob)};
+  x.putImageData(autoFix(x.getImageData(0,0,W,H)),0,0);
+  const fb=await toBlob(), fixed={blob:fb,url:URL.createObjectURL(fb)};
+  shots.push({orig,fixed,night}); if(shots.length>12){const o=shots.shift();URL.revokeObjectURL(o.orig.url);URL.revokeObjectURL(o.fixed.url)}
   sel=shots.length-1;
-  $("thumb").src=shots[sel].url; $("thumb").hidden=false; $("thumbPh").hidden=true;
+  $("thumb").src=cur(shots[sel]).url; $("thumb").hidden=false; $("thumbPh").hidden=true;
   $("badge").textContent=shots.length; $("badge").hidden=shots.length<2;
-  const f=$("flash"); f.classList.add("on"); requestAnimationFrame(()=>requestAnimationFrame(()=>f.classList.remove("on")));
-  if(!open) say("Got it",true);
+  const fl=$("flash"); fl.classList.add("on"); requestAnimationFrame(()=>requestAnimationFrame(()=>fl.classList.remove("on")));
+  if(!open) say(night?"Got it, night mode":"Got it",true);
   if(open) openReview();
 }
+const cur=s=>fixOn?s.fixed:s.orig;
 function openReview(){
   if(!shots.length)return;
-  $("shot").src=shots[sel].url;
+  $("shot").src=cur(shots[sel]).url;
   const st=$("strip"); st.innerHTML=""; st.hidden=shots.length<2;
-  shots.forEach((s,i)=>{const im=document.createElement("img");im.src=s.url;im.alt="Photo "+(i+1);if(i===sel)im.className="sel";im.onclick=()=>{sel=i;openReview()};st.append(im)});
-  const canShare=!!navigator.canShare?.({files:[new File([shots[0].blob],"a.jpg",{type:"image/jpeg"})]});
+  shots.forEach((s,i)=>{const im=document.createElement("img");im.src=cur(s).url;im.alt="Photo "+(i+1);if(i===sel)im.className="sel";im.onclick=()=>{sel=i;openReview()};st.append(im)});
+  $("fixBtn").setAttribute("aria-pressed",fixOn); $("fixBtn").textContent=fixOn?"✨ Auto fix ON":"✨ Auto fix OFF"; $("cmpBtn").hidden=!fixOn;
+  const canShare=!!navigator.canShare?.({files:[new File([shots[0].orig.blob],"a.jpg",{type:"image/jpeg"})]});
   $("saveBtn").textContent=shots.length>1?"Save all "+shots.length:"Save";
-  $("saveHint").textContent=canShare?"Tap Save, then “Save Image(s)” to put them in Photos.":"Press and hold the photo, then tap “Save to Photos”.";
+  $("saveHint").textContent=(shots[sel].night?"Night mode used. ":"")+(canShare?"Tap Save, then “Save Image(s)” to put them in Photos.":"Press and hold the photo, then tap “Save to Photos”.");
   $("review").hidden=false;
 }
+$("fixBtn").onclick=()=>{fixOn=!fixOn;try{localStorage.setItem("sc-fix",fixOn?"1":"0")}catch{};openReview();$("thumb").src=cur(shots[sel]).url};
+const before=on=>{ if(shots.length)$("shot").src=(on?shots[sel].orig:cur(shots[sel])).url; $("cmpBtn").textContent=on?"Showing before":"Hold: before" };
+for(const [ev,on] of [["pointerdown",1],["pointerup",0],["pointerleave",0],["pointercancel",0]]) $("cmpBtn").addEventListener(ev,()=>before(on));
 $("shoot").onclick=()=>capture(!autoOn);
 $("thumb").onclick=openReview;
 $("backBtn").onclick=()=>{$("review").hidden=true};
 $("saveBtn").onclick=async()=>{
   if(!shots.length)return;
-  const files=shots.map((s,i)=>new File([s.blob],"shot-"+Date.now()+"-"+(i+1)+".jpg",{type:"image/jpeg"}));
+  const files=shots.map((s,i)=>new File([cur(s).blob],"shot-"+Date.now()+"-"+(i+1)+".jpg",{type:"image/jpeg"}));
   try{ if(navigator.canShare?.({files})) await navigator.share({files}); else $("saveHint").textContent="Press and hold the photo, then tap “Save to Photos”."; }
   catch{}
 };

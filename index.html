@@ -116,7 +116,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
     <button data-mode="place" aria-pressed="false">Place</button>
     <span class="sp"></span>
     <button id="auto" aria-pressed="false">Auto shoot</button>
-    <button id="light" aria-pressed="false" hidden>💡 Light</button>
+    <button id="light" aria-pressed="false">💡 Light</button>
     <button id="voice" aria-pressed="false">🔈 Voice</button>
   </div>
 
@@ -254,11 +254,14 @@ let lightOn=false, torchOK=false;
 function lightAvail(){ return facing==="user"||torchOK }
 function refreshLight(){
   const tr=stream?.getVideoTracks?.()[0]; torchOK=!!tr?.getCapabilities?.().torch;
-  $("light").hidden=!lightAvail(); $("light").setAttribute("aria-pressed",lightOn);
+  $("light").setAttribute("aria-pressed",lightOn);
   $("light").textContent=lightOn?"💡 Light ON":"💡 Light";
   $("stage").classList.toggle("ring",lightOn&&facing==="user");
 }
+let toastT;
+function toast(html,ms=6000){const b=$("busy");b.innerHTML=html;b.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{b.hidden=true;b.innerHTML="Night mode<br>hold still…"},ms)}
 $("light").onclick=async()=>{
+  if(facing!=="user"&&!torchOK){ toast("Safari can't switch on the flashlight here.<br><br>Swipe down from the top-right corner<br>and tap the 🔦 flashlight.<br><br>Or tap <b>Flip camera</b> for the selfie ring light."); return; }
   lightOn=!lightOn;
   if(facing!=="user"){ try{ await stream.getVideoTracks()[0].applyConstraints({advanced:[{torch:lightOn}]}) }catch{ lightOn=false } }
   refreshLight();
@@ -328,7 +331,7 @@ function coach(m,subj,mp){
   // light
   const ev=m.ev, evs=(ev>=0?"+":"−")+Math.abs(ev).toFixed(1);
   meters.push([Math.abs(ev)<.6?"ok":Math.abs(ev)<1.2?"mid":"no","EV "+evs]);
-  if(ev<-1.1) tips.push([9,"Too dark", lightAvail()&&!lightOn?"Tap 💡 Light, or move toward a window":"Move toward a window — night mode will help","bad"]);
+  if(ev<-1.1) tips.push([9,"Too dark", !lightOn?"Tap 💡 Light, or move toward a window":"Move toward a window — night mode will help","bad"]);
   else if(ev<-.6) tips.push([5,"A bit dark","Tap your subject, slide finger up","warn"]);
   if(ev>1.1||m.hi>.12) tips.push([9,"Too bright","Turn away from the sun or lamp","bad"]);
   else if(ev>.6) tips.push([5,"A bit bright","Tap your subject, slide finger down","warn"]);

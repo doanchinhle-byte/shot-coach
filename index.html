@@ -27,8 +27,8 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .top{position:absolute;left:0;right:0;top:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
   padding:calc(10px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 10px max(12px,env(safe-area-inset-left,0px));
   background:linear-gradient(rgba(0,0,0,.65),transparent)}
-.top button{font:600 14px/1 -apple-system,system-ui,sans-serif;color:var(--fg);background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);
-  border-radius:999px;padding:8px 12px}
+.top button{font:600 13px/1 -apple-system,system-ui,sans-serif;color:var(--fg);background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);
+  border-radius:999px;padding:8px 10px}
 .top button[aria-pressed="true"]{background:var(--focus);color:#141008;border-color:var(--focus)}
 .top .sp{flex:1}
 
@@ -68,6 +68,22 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .pcard small a{color:inherit}
 .pcard button{margin-top:auto;font:700 14px/1 -apple-system,system-ui,sans-serif;background:var(--focus);color:#141008;border:0;border-radius:999px;padding:10px}
 #tpl .proBtn{border-color:var(--focus);color:#141008;background:var(--focus)}
+#aiBtn{background:linear-gradient(135deg,#ffcc33,#ff9f43)!important;color:#141008!important;border-color:transparent!important}
+#aiCard,#aiSet{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));width:min(380px,calc(100% - 24px));z-index:15;
+  background:rgba(14,16,18,.94);border:1px solid var(--focus);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+#aiCard .hd{display:flex;align-items:center;gap:12px}
+#aiScore{font-family:var(--display);font-weight:800;font-size:38px;line-height:1;color:var(--focus);font-variant-numeric:tabular-nums}
+#aiScore small{font-size:15px;color:var(--dim)}
+#aiHead{font-family:var(--display);font-weight:700;font-size:19px;line-height:1.2;text-wrap:balance}
+#aiSteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px;font-size:15px;line-height:1.35}
+#aiPose{margin:0;font-size:14px;color:var(--good)}
+#aiCard .row,#aiSet .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+#aiCard button,#aiSet button{font:700 14px/1 -apple-system,system-ui,sans-serif;border:0;border-radius:999px;padding:10px 16px;background:#2a2e33;color:#fff}
+#aiCard button.pri,#aiSet button.pri{background:var(--focus);color:#141008}
+#aiSet h2{margin:0;font-family:var(--display);font-size:20px;color:var(--focus)}
+#aiSet label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--dim)}
+#aiSet input,#aiSet select{font:16px -apple-system,system-ui,sans-serif;padding:10px;border-radius:10px;border:1px solid #3a4048;background:#1a1d21;color:#fff}
+#aiErr{color:var(--bad);font-size:14px;margin:0}
 #refBar{position:absolute;left:50%;transform:translateX(-50%);top:calc(108px + env(safe-area-inset-top,0px));display:flex;gap:6px;align-items:center;
   background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 8px;max-width:calc(100% - 24px)}
 #refBar button{font:600 13px/1 -apple-system,system-ui,sans-serif;color:var(--fg);background:transparent;border:0;border-radius:999px;padding:8px 10px}
@@ -142,6 +158,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
     <button data-mode="people" aria-pressed="false">People</button>
     <button data-mode="place" aria-pressed="false">Place</button>
     <span class="sp"></span>
+    <button id="aiBtn">🎓 AI Pro</button>
     <button id="auto" aria-pressed="false">Auto shoot</button>
     <button id="light" aria-pressed="false">💡 Light</button>
     <button id="voice" aria-pressed="false">🔈 Voice</button>
@@ -164,6 +181,18 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
     <p class="sub" id="proSub">Pick a photo by a professional photographer. It appears see-through on your camera so you can copy the angle and position.</p>
     <div id="proGrid"></div>
   </div>
+  <div id="aiCard" hidden>
+    <div class="hd"><div id="aiScore">–</div><div id="aiHead">Looking…</div></div>
+    <ol id="aiSteps"></ol><p id="aiPose" hidden></p><p id="aiErr" hidden></p>
+    <div class="row"><button id="aiGear" aria-label="AI settings">⚙</button><button id="aiClose">Close</button><button id="aiAgain" class="pri">Ask again</button></div>
+  </div>
+  <div id="aiSet" hidden>
+    <h2>AI Pro setup</h2>
+    <label>AI server address<input id="aiUrl" type="url" placeholder="https://shot-coach-ai.yourname.workers.dev" autocomplete="off"></label>
+    <label>Passcode<input id="aiPass" type="password" autocomplete="off"></label>
+    <label>Language<select id="aiLang"><option value="en">English</option><option value="vi">Tiếng Việt</option></select></label>
+    <div class="row"><button id="aiSetCancel">Cancel</button><button id="aiSetSave" class="pri">Save</button></div>
+  </div>
   <div id="setup" hidden><h2 id="setupT"></h2><ol id="setupL"></ol><button id="setupOk">Got it</button></div>
 
   <div class="dock">
@@ -177,7 +206,7 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
   <h1>Shot <span>Coach</span></h1>
   <p>Point your camera. Big tips appear live and tell you exactly what to move. When the button turns <b style="color:var(--good)">green</b>, shoot.</p>
   <button id="go">Start camera</button>
-  <p style="font-size:12px;opacity:.5">version 10</p>
+  <p style="font-size:12px;opacity:.5">version 11</p>
   <p id="err" hidden></p>
 </div>
 
@@ -396,6 +425,47 @@ setMode(mode);
 function setVoice(on){voiceOn=on;try{localStorage.setItem("sc-voice",on?"1":"0")}catch{}$("voice").setAttribute("aria-pressed",on);$("voice").textContent=on?"🔊 Voice":"🔈 Voice"}
 $("voice").onclick=()=>{setVoice(!voiceOn);if(voiceOn)say("Voice tips on",true)};
 setVoice(voiceOn);
+
+/* ---------- AI Pro Photographer (via the owner's secure Cloudflare Worker) ---------- */
+const AIK="sc-ai"; let aiCfg={}; try{aiCfg=JSON.parse(localStorage.getItem(AIK)||"{}")}catch{}
+let aiCtl=null;
+function openAiSet(){ $("aiUrl").value=aiCfg.url||""; $("aiPass").value=aiCfg.pass||""; $("aiLang").value=aiCfg.lang||"en"; $("aiCard").hidden=true; $("aiSet").hidden=false; }
+$("aiSetCancel").onclick=()=>{$("aiSet").hidden=true};
+$("aiSetSave").onclick=()=>{ aiCfg={url:$("aiUrl").value.trim().replace(/\/+$/,""),pass:$("aiPass").value,lang:$("aiLang").value};
+  try{localStorage.setItem(AIK,JSON.stringify(aiCfg))}catch{}; $("aiSet").hidden=true; askAI(); };
+$("aiGear").onclick=openAiSet;
+$("aiClose").onclick=()=>{ aiCtl?.abort(); $("aiCard").hidden=true };
+$("aiAgain").onclick=()=>askAI();
+$("aiBtn").onclick=()=>askAI();
+function frameB64(){
+  const W=v.videoWidth,H=v.videoHeight,sc=768/Math.max(W,H),c=document.createElement("canvas");
+  c.width=Math.round(W*sc); c.height=Math.round(H*sc); const x=c.getContext("2d");
+  if(facing==="user"){x.translate(c.width,0);x.scale(-1,1)} x.drawImage(v,0,0,c.width,c.height);
+  return c.toDataURL("image/jpeg",.72).split(",")[1];
+}
+async function askAI(){
+  if(!aiCfg.url||!aiCfg.pass){ openAiSet(); return; }
+  if(!v.videoWidth)return;
+  aiCtl?.abort(); aiCtl=new AbortController();
+  $("setup").hidden=true; $("aiSet").hidden=true; $("aiCard").hidden=false; $("aiErr").hidden=true; $("aiPose").hidden=true;
+  $("aiScore").innerHTML="…"; $("aiHead").textContent=aiCfg.lang==="vi"?"Nhiếp ảnh gia đang xem…":"Pro is looking…"; $("aiSteps").innerHTML="";
+  try{
+    const T=curTpl();
+    const r=await fetch(aiCfg.url,{method:"POST",signal:aiCtl.signal,headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({passcode:aiCfg.pass,mode,template:T.name,lang:aiCfg.lang||"en",image:frameB64()})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ throw new Error(d.error||("Error "+r.status)); }
+    const sc=Math.max(1,Math.min(10,parseInt(d.score)||5));
+    $("aiScore").innerHTML=sc+"<small>/10</small>"; $("aiHead").textContent=String(d.headline||"");
+    for(const st of (Array.isArray(d.steps)?d.steps:[]).slice(0,4)){const li=document.createElement("li");li.textContent=String(st);$("aiSteps").append(li)}
+    if(d.pose){ $("aiPose").hidden=false; $("aiPose").textContent="Pose: "+d.pose; }
+    say([d.headline,...(d.steps||[]).slice(0,2),d.pose].filter(Boolean).join(". "),true);
+  }catch(e){
+    if(e.name==="AbortError")return;
+    $("aiScore").textContent="!"; $("aiHead").textContent="Couldn't reach AI Pro";
+    $("aiErr").hidden=false; $("aiErr").textContent=e.message==="Wrong passcode"?"Wrong passcode. Tap ⚙ to fix it.":(e.message||"Check your connection and the server address (⚙).");
+  }
+}
 
 /* ---------- Auto shoot ---------- */
 let autoOn=localStorage.getItem("sc-auto")==="1", readySince=0, lastAutoShot=-1e9;

@@ -168,28 +168,60 @@ const TEMPLATES={
     {id:"angle",name:"45° dish",shape:"ellipse",box:R(.1,.4,.9,.78),fit:"center",
      steps:["Sit as if you're about to eat it","Tilt the phone to about 45°","Light from a window behind or beside the dish"]},
     {id:"drink",name:"Drink",shape:"glass",box:R(.32,.24,.68,.82),fit:"center",
-     steps:["Phone at the drink's height, not from above","A bright window behind makes it glow","Wipe the glass, add a straw or garnish"]}],
+     steps:["Phone at the drink's height, not from above","A bright window behind makes it glow","Wipe the glass, add a straw or garnish"]},
+    {id:"closeup",name:"Close-up",shape:"ellipse",box:R(.02,.25,.98,.8),fit:"center",
+     steps:["Move in until the food fills the screen","Focus on the best part: cheese pull, foam, glaze","Tap the screen on that spot to focus"]},
+    {id:"combo",name:"Drink + dish",shape:"combo",box:R(.08,.26,.92,.8),multi:2,fit:"center",
+     steps:["Drink at the back left, dish at the front right","Phone at about 30° above the table","Both items touching the grid lines"]},
+    {id:"pair",name:"Two dishes",shape:"twoplates",box:R(.04,.3,.96,.72),multi:2,fit:"center",
+     steps:["Put the dishes side by side, slightly overlapping","Same distance from the phone","Shoot at 45° or straight from above"]},
+    {id:"spread",name:"Table spread",shape:"spread",box:R(.06,.22,.94,.78),flat:true,multi:2,fit:"center",
+     steps:["Arrange 3–5 dishes, biggest in the middle","Hold the phone flat above the table","Stand on a chair if you need height"]},
+    {id:"inhand",name:"Drink in hand",shape:"glass",box:R(.5,.28,.82,.86),fit:"center",
+     steps:["Hold the cup on the right grid line","Background blurred: street, shop or window","Hand relaxed, logo facing the camera"]}],
   product:[
     {id:"hero",name:"Hero center",shape:"box",box:R(.2,.28,.8,.74),fit:"center",
      steps:["Plain wall or white sheet behind it","Phone at the product's height","Side light from a window"]},
     {id:"space",name:"Space for text",shape:"box",box:R(.48,.3,.9,.72),fit:"center",
      steps:["Put the product on the right grid line","Keep the left side empty for text or a logo","Plain background"]},
+    {id:"low",name:"Low angle",shape:"box",box:R(.22,.3,.78,.86),fit:"center",
+     steps:["Phone at table level, slightly below the product","Makes it look big and premium","Clean, simple background"]},
+    {id:"pair",name:"Two products",shape:"twoboxes",box:R(.1,.32,.9,.74),multi:2,fit:"center",
+     steps:["Place them side by side, one slightly in front","Same lighting on both","Small gap between them"]},
+    {id:"trio",name:"Group of 3",shape:"trio",box:R(.1,.3,.9,.76),multi:2,fit:"center",
+     steps:["Tallest in the middle, shorter on the sides","Overlap them a little","Odd numbers look more natural"]},
     {id:"flatlay",name:"Flat lay",shape:"box",box:R(.14,.3,.86,.68),flat:true,fit:"center",
      steps:["Lay items on a clean table","Hold the phone flat, straight above","Even gaps between items"]}],
   people:[
     {id:"half",name:"Half body",shape:"half",box:R(.2,.21,.8,1.02),person:1,fit:"top",
      steps:["Stand about 1.5 m (5 ft) away","Phone at their chest height","Face them toward the light; turn shoulders slightly"]},
+    {id:"head",name:"Head & shoulders",shape:"half",box:R(.1,.16,.9,1.02),person:1,fit:"top",
+     steps:["Stand about 1 m (3 ft) away","Eyes on the top grid line","Chin slightly forward and down"]},
     {id:"full",name:"Full body",shape:"full",box:R(.34,.18,.66,.95),person:1,fit:"full",
      steps:["Step back about 3–4 m (10–13 ft)","Crouch so the phone is at their waist: legs look longer","Small gap above the head and below the feet"]},
+    {id:"walk",name:"Walking",shape:"full",box:R(.18,.16,.44,.95),person:1,fit:"full",
+     steps:["Person on the left grid line, walking to the right","Leave space in front of them","Auto shoot on, ask them to walk slowly"]},
+    {id:"sit",name:"Sitting",shape:"sit",box:R(.22,.22,.78,.92),person:1,fit:"full",
+     steps:["Seated at a table or step, back straight","Phone at their eye level","Hands busy: holding a cup or resting on the table"]},
     {id:"side",name:"Off-center",shape:"half",box:R(.44,.22,.94,1.02),person:1,fit:"top",
      steps:["Put them on the right grid line","Have them look toward the empty side","Shows the place behind them"]},
     {id:"two",name:"Two people",shape:"two",box:R(.08,.23,.92,1.02),person:2,fit:"top",
-     steps:["Stand close, shoulders touching","Heads at a similar height","Phone at their chest height"]}],
+     steps:["Stand close, shoulders touching","Heads at a similar height","Phone at their chest height"]},
+    {id:"group",name:"Group",shape:"group",box:R(.04,.28,.96,1.02),person:3,fit:"top",
+     steps:["Tallest people at the back or the middle","Everyone close together, no gaps","Take several shots; someone always blinks"]},
+    {id:"selfie",name:"Selfie",shape:"half",box:R(.16,.2,.84,1.02),person:1,fit:"top",
+     steps:["Tap Flip camera","Arm out, phone slightly above eye level","Face a window; tap 💡 Light if dark"]}],
   place:[
     {id:"personview",name:"Person + view",shape:"full",box:R(.22,.48,.4,.9),person:1,horizon:.667,fit:"full",
      steps:["Person on the left grid line","Horizon on the lower grid line","Step back: small person, big view"]},
     {id:"landscape",name:"Landscape",shape:null,horizon:.667,
-     steps:["Horizon on the lower grid line for a big sky","Keep the level line green","Add something in front: a rock, rail or flower"]}]
+     steps:["Horizon on the lower grid line for a big sky","Keep the level line green","Add something in front: a rock, rail or flower"]},
+    {id:"store",name:"Storefront",shape:"building",box:R(.08,.22,.92,.84),guide:true,
+     steps:["Stand across the street, facing it straight on","Keep the phone level, don't tilt up","Sign inside the outline, doors open, lights on"]},
+    {id:"lines",name:"Leading lines",shape:"lines",box:R(0,.3,1,1),guide:true,
+     steps:["Find a road, path, counter or railing","Let it run from a bottom corner toward the middle","Put your subject where the lines meet"]},
+    {id:"frame",name:"Frame in frame",shape:"frame",box:R(.12,.2,.88,.86),guide:true,
+     steps:["Shoot through a doorway, window or arch","The opening forms a frame","Subject in the middle of the opening"]}]
 };
 let tplId={};
 try{tplId=JSON.parse(localStorage.getItem("sc-tpl")||"{}")}catch{}
@@ -198,6 +230,12 @@ const ICON={plate:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/
   glass:'<path d="M6 3h8l-1 14H7z"/>',box:'<rect x="4" y="5" width="12" height="10" rx="1"/>',
   half:'<circle cx="10" cy="6" r="3.2"/><path d="M3 19c0-5 3-8 7-8s7 3 7 8"/>',full:'<circle cx="10" cy="3.5" r="2.3"/><path d="M7 8h6v6h-1v5H8v-5H7z"/>',
   two:'<circle cx="6.5" cy="7" r="2.6"/><circle cx="13.5" cy="7" r="2.6"/><path d="M1 19c0-4 2-7 5.5-7S12 15 12 19M8 19c0-4 2-7 5.5-7S19 15 19 19"/>',
+  group:'<circle cx="4" cy="8" r="2"/><circle cx="10" cy="6" r="2.3"/><circle cx="16" cy="8" r="2"/><path d="M1 18c0-3 1.5-6 3-6M7 18c0-4 1.5-8 3-8s3 4 3 8M19 18c0-3-1.5-6-3-6"/>',
+  sit:'<circle cx="8" cy="4" r="2.3"/><path d="M6 8h4v6h6v4M6 8v6"/>',
+  combo:'<path d="M3 4h5l-1 9H4z"/><ellipse cx="13" cy="14" rx="5" ry="3"/>',twoplates:'<circle cx="6" cy="11" r="4.5"/><circle cx="14.5" cy="9" r="4.5"/>',
+  spread:'<circle cx="10" cy="10" r="4"/><circle cx="4" cy="5" r="2.5"/><circle cx="16" cy="5" r="2.5"/><circle cx="4" cy="15" r="2.5"/><circle cx="16" cy="15" r="2.5"/>',
+  twoboxes:'<rect x="2" y="7" width="7" height="9"/><rect x="11" y="5" width="7" height="11"/>',trio:'<rect x="1" y="9" width="5" height="8"/><rect x="7.5" y="4" width="5" height="13"/><rect x="14" y="8" width="5" height="9"/>',
+  building:'<path d="M3 18V7l7-4 7 4v11M8 18v-5h4v5"/>',lines:'<path d="M2 18L9 6M18 18L11 6"/>',frame:'<rect x="2" y="2" width="16" height="16"/><rect x="6" y="6" width="8" height="10"/>',
   land:'<path d="M2 13h16M4 13l4-5 3 3 2-2 3 4"/>'};
 function renderTpl(){
   const box=$("tpl"); box.innerHTML="";
@@ -207,6 +245,7 @@ function renderTpl(){
     b.append(t.name);
     b.onclick=()=>{tplId[mode]=t.id;try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{};renderTpl();showSetup()};
     box.append(b);
+    if(t===curTpl())requestAnimationFrame(()=>b.scrollIntoView({inline:"center",block:"nearest"}));
   }
 }
 let setupTimer;
@@ -352,7 +391,7 @@ function coach(m,subj,mp){
   // template matching: compare the detected subject with the ghost outline
   const T=curTpl(); tplMatch=false;
   if(T.flat&&tilt&&!tilt.flat) tips.push([4,"Hold the phone flat","This template is shot from straight above","warn"]);
-  if(T.box&&subj&&mp){
+  if(T.box&&!T.guide&&subj&&mp){
     const W=mp.W,H=mp.H, g=T.box(W,H);
     const x0=Math.max(0,mp.x(subj.x)), y0=Math.max(0,mp.y(subj.y)), x1=Math.min(W,mp.x(subj.x+subj.w)), y1=Math.min(H,mp.y(subj.y+subj.h));
     const sw=x1-x0, shh=y1-y0, gx1=Math.min(W,g.x+g.w), gy1=Math.min(H,g.y+g.h);
@@ -369,8 +408,8 @@ function coach(m,subj,mp){
     else if(Math.abs(dx)>.07) tips.push([4, dx>0?"Move phone right":"Move phone left","Slide until "+who+" sits in the outline","warn"]);
     else if(Math.abs(dy)>.07) tips.push([4, dy>0?"Tilt phone down":"Tilt phone up","Line up with the outline","warn"]);
     else tplMatch=true;
-  }else if(T.box&&detector){
-    tips.push([1, T.person?(T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
+  }else if(T.box&&!T.guide&&detector){
+    tips.push([1, T.person?(T.person>2?"Find your group":T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
   }
   tips.sort((a,b)=>b[0]-a[0]);
   return {tip:tips[0]||[0,"Looks good — shoot!","Tap the green button","ok"], meters};
@@ -434,6 +473,23 @@ function drawGhost(shape,b,ok){
   else if(shape==="box"){ P.roundRect?P.roundRect(x,y,w,h,8):P.rect(x,y,w,h); }
   else if(shape==="half"){ halfPerson(x+w/2,y,w,h); }
   else if(shape==="two"){ halfPerson(x+w*.27,y,w*.5,h); halfPerson(x+w*.73,y+h*.02,w*.5,h); }
+  else if(shape==="group"){ halfPerson(x+w*.2,y+h*.06,w*.32,h); halfPerson(x+w*.8,y+h*.06,w*.32,h); halfPerson(x+w*.5,y,w*.36,h); }
+  else if(shape==="combo"){ P.moveTo(x,y); P.lineTo(x+w*.34,y); P.lineTo(x+w*.3,y+h*.62); P.lineTo(x+w*.04,y+h*.62); P.closePath();
+    P.moveTo(x+w,y+h*.68); P.ellipse(x+w*.64,y+h*.68,w*.36,h*.3,0,0,Math.PI*2); }
+  else if(shape==="twoplates"){ const r=Math.min(w*.27,h*.5); P.moveTo(x+w*.27+r,y+h/2+h*.06); P.arc(x+w*.27,y+h/2+h*.06,r,0,Math.PI*2); P.moveTo(x+w*.73+r,y+h/2-h*.06); P.arc(x+w*.73,y+h/2-h*.06,r,0,Math.PI*2); }
+  else if(shape==="spread"){ const cx=x+w/2,cy=y+h/2,R0=Math.min(w,h)*.22,r=R0*.62;
+    P.moveTo(cx+R0,cy); P.arc(cx,cy,R0,0,Math.PI*2);
+    for(const [dx,dy] of [[-.32,-.3],[.32,-.3],[-.32,.3],[.32,.3]]){const px=cx+dx*w,py=cy+dy*h;P.moveTo(px+r,py);P.arc(px,py,r,0,Math.PI*2)} }
+  else if(shape==="twoboxes"){ P.rect(x,y+h*.18,w*.44,h*.82); P.rect(x+w*.52,y,w*.48,h); }
+  else if(shape==="trio"){ P.rect(x,y+h*.3,w*.28,h*.7); P.rect(x+w*.34,y,w*.32,h); P.rect(x+w*.72,y+h*.2,w*.28,h*.8); }
+  else if(shape==="sit"){ const cx=x+w/2, r=w*.15, hy=y+r; P.moveTo(cx+r,hy); P.arc(cx,hy,r,0,Math.PI*2);
+    const st=y+r*2.3; P.moveTo(cx-w*.3,st+h*.05); P.quadraticCurveTo(cx-w*.3,st,cx-w*.15,st); P.lineTo(cx+w*.15,st); P.quadraticCurveTo(cx+w*.3,st,cx+w*.3,st+h*.05);
+    P.lineTo(cx+w*.3,y+h*.6); P.lineTo(cx+w*.48,y+h*.62); P.lineTo(cx+w*.48,y+h*.72); P.lineTo(cx+w*.36,y+h*.72); P.lineTo(cx+w*.34,y+h);
+    P.lineTo(cx+w*.14,y+h); P.lineTo(cx+w*.12,y+h*.74); P.lineTo(cx-w*.12,y+h*.74); P.lineTo(cx-w*.14,y+h); P.lineTo(cx-w*.34,y+h);
+    P.lineTo(cx-w*.36,y+h*.72); P.lineTo(cx-w*.48,y+h*.72); P.lineTo(cx-w*.48,y+h*.62); P.lineTo(cx-w*.3,y+h*.6); P.closePath(); }
+  else if(shape==="building"){ P.rect(x,y+h*.12,w,h*.88); P.moveTo(x+w*.1,y+h*.02); P.rect(x+w*.1,y,w*.8,h*.18); P.rect(x+w*.38,y+h*.55,w*.24,h*.45); }
+  else if(shape==="lines"){ P.moveTo(x,y+h); P.lineTo(x+w*.46,y); P.moveTo(x+w,y+h); P.lineTo(x+w*.54,y); P.moveTo(x+w*.5+10,y); P.arc(x+w*.5,y,10,0,Math.PI*2); }
+  else if(shape==="frame"){ P.rect(x,y,w,h); P.rect(x+w*.22,y+h*.18,w*.56,h*.72); }
   else if(shape==="full"){ const cx=x+w/2, r=w*.17, hy=y+r; P.moveTo(cx+r,hy); P.arc(cx,hy,r,0,Math.PI*2);
     const st=y+r*2.4; P.moveTo(cx-w*.45,st+h*.04); P.quadraticCurveTo(cx-w*.45,st,cx-w*.2,st); P.lineTo(cx+w*.2,st); P.quadraticCurveTo(cx+w*.45,st,cx+w*.45,st+h*.04);
     P.lineTo(cx+w*.38,y+h*.52); P.lineTo(cx+w*.28,y+h*.52); P.lineTo(cx+w*.22,y+h); P.lineTo(cx+w*.04,y+h); P.lineTo(cx,y+h*.6);
@@ -444,22 +500,25 @@ function drawGhost(shape,b,ok){
 /* ---------- Main loop ---------- */
 let lastT=0, lastTip="", tplMatch=false;
 function pickSubject(){
-  const T=curTpl(), want=T.person||0, people=[];
-  let best=null;
+  const T=curTpl(), want=T.person||0, people=[], objs=[];
   for(const d of dets){
     const c=d.categories?.[0]; if(!c)continue; const lab=c.categoryName;
     if(IGNORE.has(lab))continue;
-    if(want&&lab!=="person")continue;
-    const b=d.boundingBox, a=b.width*b.height, o={x:b.originX,y:b.originY,w:b.width,h:b.height,a,label:lab};
-    if(lab==="person")people.push(o);
-    if(!best||a>best.a)best=o;
+    const b=d.boundingBox, o={x:b.originX,y:b.originY,w:b.width,h:b.height,a:b.width*b.height,label:lab};
+    (lab==="person"?people:objs).push(o);
   }
-  if(want>1&&people.length>=2){ // union of the two biggest people
-    people.sort((p,q)=>q.a-p.a); const [p,q]=people;
-    const x=Math.min(p.x,q.x), y=Math.min(p.y,q.y), r=Math.max(p.x+p.w,q.x+q.w), btm=Math.max(p.y+p.h,q.y+q.h);
-    return {x,y,w:r-x,h:btm-y,a:(r-x)*(btm-y),label:"2 people"};
+  const union=(arr,lab)=>{const x=Math.min(...arr.map(o=>o.x)),y=Math.min(...arr.map(o=>o.y)),r=Math.max(...arr.map(o=>o.x+o.w)),b=Math.max(...arr.map(o=>o.y+o.h));return{x,y,w:r-x,h:b-y,a:(r-x)*(b-y),label:lab}};
+  people.sort((p,q)=>q.a-p.a);
+  if(want){
+    if(!people.length)return null;
+    if(want===2&&people.length>=2)return union(people.slice(0,2),"2 people");
+    if(want>=3&&people.length>=2)return union(people.slice(0,6),people.length+" people");
+    return people[0];
   }
-  return best;
+  const pool=objs.length?objs:people; pool.sort((p,q)=>q.a-p.a);
+  if(!pool.length)return null;
+  if(T.multi&&pool.length>=2)return union(pool.slice(0,T.multi===2?Math.min(5,pool.length):2),pool.length+" items");
+  return pool[0];
 }
 function loop(t=0){
   requestAnimationFrame(loop);

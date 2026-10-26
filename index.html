@@ -35,13 +35,27 @@ canvas#ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 /* Tip banner */
 #tip{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%);max-width:calc(100% - 32px);
   font-family:var(--display);font-weight:800;font-size:24px;line-height:1.15;text-align:center;text-wrap:balance;
-  padding:12px 18px;border-radius:16px;background:rgba(0,0,0,.6);border:2px solid var(--warn);color:var(--fg);transition:border-color .2s}
+  padding:10px 16px;border-radius:16px;background:rgba(0,0,0,.45);border:2px solid var(--warn);color:var(--fg);transition:border-color .2s}
 #tip.ok{border-color:var(--good);background:rgba(20,80,40,.75)}
 #tip.bad{border-color:var(--bad)}
 #tip small{display:block;font:500 13px/1.3 var(--mono);color:var(--dim);margin-top:4px}
 
 /* Meters */
-#meters{position:absolute;left:0;right:0;bottom:calc(118px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 12px}
+/* Templates strip */
+#tpl{position:absolute;left:0;right:0;bottom:calc(112px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;overflow-x:auto;
+  padding:4px max(12px,env(safe-area-inset-right,0px)) 4px max(12px,env(safe-area-inset-left,0px));scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#tpl::-webkit-scrollbar{display:none}
+#tpl button{flex:none;display:flex;align-items:center;gap:6px;font:600 13px/1 -apple-system,system-ui,sans-serif;color:var(--fg);
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:7px 10px}
+#tpl button svg{width:20px;height:20px;flex:none}
+#tpl button[aria-pressed="true"]{border-color:var(--focus);color:var(--focus);background:rgba(40,32,0,.75)}
+/* Setup card */
+#setup{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(200px + env(safe-area-inset-bottom,0px));width:min(360px,calc(100% - 32px));
+  background:rgba(14,16,18,.92);border:1px solid var(--focus);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+#setup h2{margin:0;font-family:var(--display);font-weight:800;font-size:20px;color:var(--focus)}
+#setup ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px;font-size:15px;line-height:1.35}
+#setup button{align-self:flex-end;font:700 15px/1 -apple-system,system-ui,sans-serif;background:var(--focus);color:#141008;border:0;border-radius:999px;padding:10px 18px}
+#meters{position:absolute;left:0;right:0;bottom:calc(160px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 12px}
 .m{font:500 12px/1 var(--mono);padding:6px 8px;border-radius:7px;background:rgba(0,0,0,.55);border:1px solid currentColor}
 .ok{color:var(--good)}.mid{color:var(--warn)}.no{color:var(--bad)}
 
@@ -90,6 +104,8 @@ button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 
   <div id="tip">Point at your subject<small>checking…</small></div>
   <div id="meters"></div>
+  <div id="tpl" role="group" aria-label="Framing templates"></div>
+  <div id="setup" hidden><h2 id="setupT"></h2><ol id="setupL"></ol><button id="setupOk">Got it</button></div>
 
   <div class="dock">
     <img id="thumb" alt="Last photo" hidden>
@@ -118,8 +134,70 @@ const v=$("v"), ov=$("ov"), oc=ov.getContext("2d");
 let mode=localStorage.getItem("sc-mode")||"food", facing="environment", stream=null;
 let voiceOn=localStorage.getItem("sc-voice")==="1";
 
+/* ---------- Framing templates ----------
+   box(W,H) -> target rect in screen px. shape = how the ghost outline is drawn.
+   fit: how to compare the detected subject: "top" (people, bottom may be cut off) or "center". */
+const R=(x0,y0,x1,y1)=>(W,H)=>({x:x0*W,y:y0*H,w:(x1-x0)*W,h:(y1-y0)*H});
+const CIRC=(cx,cy,d)=>(W,H)=>{const s=d*Math.min(W,H);return{x:cx*W-s/2,y:cy*H-s/2,w:s,h:s}};
+const TEMPLATES={
+  food:[
+    {id:"topdown",name:"Top-down plate",shape:"plate",box:CIRC(.5,.47,.78),flat:true,fit:"center",
+     steps:["Hold the phone flat, straight above the plate","Window light from the side, no flash","Wipe drips and clear clutter from the edges"]},
+    {id:"angle",name:"45° dish",shape:"ellipse",box:R(.1,.4,.9,.78),fit:"center",
+     steps:["Sit as if you're about to eat it","Tilt the phone to about 45°","Light from a window behind or beside the dish"]},
+    {id:"drink",name:"Drink",shape:"glass",box:R(.32,.24,.68,.82),fit:"center",
+     steps:["Phone at the drink's height, not from above","A bright window behind makes it glow","Wipe the glass, add a straw or garnish"]}],
+  product:[
+    {id:"hero",name:"Hero center",shape:"box",box:R(.2,.28,.8,.74),fit:"center",
+     steps:["Plain wall or white sheet behind it","Phone at the product's height","Side light from a window"]},
+    {id:"space",name:"Space for text",shape:"box",box:R(.48,.3,.9,.72),fit:"center",
+     steps:["Put the product on the right grid line","Keep the left side empty for text or a logo","Plain background"]},
+    {id:"flatlay",name:"Flat lay",shape:"box",box:R(.14,.3,.86,.68),flat:true,fit:"center",
+     steps:["Lay items on a clean table","Hold the phone flat, straight above","Even gaps between items"]}],
+  people:[
+    {id:"half",name:"Half body",shape:"half",box:R(.2,.21,.8,1.02),person:1,fit:"top",
+     steps:["Stand about 1.5 m (5 ft) away","Phone at their chest height","Face them toward the light; turn shoulders slightly"]},
+    {id:"full",name:"Full body",shape:"full",box:R(.34,.18,.66,.95),person:1,fit:"full",
+     steps:["Step back about 3–4 m (10–13 ft)","Crouch so the phone is at their waist: legs look longer","Small gap above the head and below the feet"]},
+    {id:"side",name:"Off-center",shape:"half",box:R(.44,.22,.94,1.02),person:1,fit:"top",
+     steps:["Put them on the right grid line","Have them look toward the empty side","Shows the place behind them"]},
+    {id:"two",name:"Two people",shape:"two",box:R(.08,.23,.92,1.02),person:2,fit:"top",
+     steps:["Stand close, shoulders touching","Heads at a similar height","Phone at their chest height"]}],
+  place:[
+    {id:"personview",name:"Person + view",shape:"full",box:R(.22,.48,.4,.9),person:1,horizon:.667,fit:"full",
+     steps:["Person on the left grid line","Horizon on the lower grid line","Step back: small person, big view"]},
+    {id:"landscape",name:"Landscape",shape:null,horizon:.667,
+     steps:["Horizon on the lower grid line for a big sky","Keep the level line green","Add something in front: a rock, rail or flower"]}]
+};
+let tplId={};
+try{tplId=JSON.parse(localStorage.getItem("sc-tpl")||"{}")}catch{}
+const curTpl=()=>TEMPLATES[mode].find(t=>t.id===tplId[mode])||TEMPLATES[mode][0];
+const ICON={plate:'<circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/>',ellipse:'<ellipse cx="10" cy="12" rx="8" ry="4.5"/>',
+  glass:'<path d="M6 3h8l-1 14H7z"/>',box:'<rect x="4" y="5" width="12" height="10" rx="1"/>',
+  half:'<circle cx="10" cy="6" r="3.2"/><path d="M3 19c0-5 3-8 7-8s7 3 7 8"/>',full:'<circle cx="10" cy="3.5" r="2.3"/><path d="M7 8h6v6h-1v5H8v-5H7z"/>',
+  two:'<circle cx="6.5" cy="7" r="2.6"/><circle cx="13.5" cy="7" r="2.6"/><path d="M1 19c0-4 2-7 5.5-7S12 15 12 19M8 19c0-4 2-7 5.5-7S19 15 19 19"/>',
+  land:'<path d="M2 13h16M4 13l4-5 3 3 2-2 3 4"/>'};
+function renderTpl(){
+  const box=$("tpl"); box.innerHTML="";
+  for(const t of TEMPLATES[mode]){
+    const b=document.createElement("button"); b.setAttribute("aria-pressed",t===curTpl());
+    b.innerHTML=`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">${ICON[t.shape||"land"]}</svg>`;
+    b.append(t.name);
+    b.onclick=()=>{tplId[mode]=t.id;try{localStorage.setItem("sc-tpl",JSON.stringify(tplId))}catch{};renderTpl();showSetup()};
+    box.append(b);
+  }
+}
+let setupTimer;
+function showSetup(){
+  const t=curTpl(); $("setupT").textContent=t.name; $("setupL").innerHTML="";
+  for(const s of t.steps){const li=document.createElement("li");li.textContent=s;$("setupL").append(li)}
+  $("setup").hidden=false; clearTimeout(setupTimer); setupTimer=setTimeout(()=>$("setup").hidden=true,12000);
+  say(t.name+". "+t.steps.join(". "),true);
+}
+$("setupOk").onclick=()=>{$("setup").hidden=true;clearTimeout(setupTimer)};
+
 /* ---------- Modes ---------- */
-function setMode(m){mode=m;try{localStorage.setItem("sc-mode",m)}catch{}document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===m))}
+function setMode(m){mode=m;try{localStorage.setItem("sc-mode",m)}catch{}document.querySelectorAll("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===m));renderTpl()}
 document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 setMode(mode);
 function setVoice(on){voiceOn=on;try{localStorage.setItem("sc-voice",on?"1":"0")}catch{}$("voice").setAttribute("aria-pressed",on);$("voice").textContent=on?"🔊 Voice":"🔈 Voice"}
@@ -136,7 +214,7 @@ $("go").onclick=async()=>{
   // iOS needs tilt permission from a tap
   try{ if(typeof DeviceOrientationEvent!=="undefined"&&DeviceOrientationEvent.requestPermission){await DeviceOrientationEvent.requestPermission()} }catch{}
   window.addEventListener("deviceorientation",onTilt);
-  try{ await startCam(); $("start").hidden=true; loop(); loadDetector(); }
+  try{ await startCam(); $("start").hidden=true; loop(); loadDetector(); showSetup(); }
   catch(e){ $("err").hidden=false; $("err").textContent= e.name==="NotAllowedError"
       ? "Camera blocked. In Settings → Safari → Camera, choose Allow, then reload this page."
       : "Couldn't open the camera. Open this page in Safari and try again."; }
@@ -225,25 +303,28 @@ function coach(m,subj,mp){
       if(a>need) tips.push([mode==="place"?8:4, tilt.land?"Straighten the phone":(r>0?"Tilt left a little":"Tilt right a little"),"Turn until the level line goes green","warn"]);
     }
   }
-  // subject / composition
-  if(subj&&mp){
-    const W=mp.W,H=mp.H, x0=Math.max(0,mp.x(subj.x)), y0=Math.max(0,mp.y(subj.y)), x1=Math.min(W,mp.x(subj.x+subj.w)), y1=Math.min(H,mp.y(subj.y+subj.h));
-    const area=((x1-x0)*(y1-y0))/(W*H), cx=(x0+x1)/2/W, top=y0/H;
-    const touch = x0<4||x1>W-4||(mode!=="people"&&(y0<4||y1>H-4));
-    meters.push([area>.25&&area<.8?"ok":"mid",subj.label]);
-    if(mode==="people"){
-      if(top<.02) tips.push([6,"Step back","Their head is cut off","warn"]);
-      else if(area<.08) tips.push([4,"Move closer","They're too small in the frame","warn"]);
-      else if(Math.abs(cx-.333)>.1&&Math.abs(cx-.667)>.1&&Math.abs(cx-.5)>.06) tips.push([3, cx<.5?"Move phone left":"Move phone right","Put them on a grid line","warn"]);
-    }else if(mode==="food"||mode==="product"){
-      if(touch&&area>.6) tips.push([5,"Step back a little","Don't cut off the edges","warn"]);
-      else if(area<.18) tips.push([5,"Move closer","Fill about 2/3 of the frame","warn"]);
-      else if(Math.abs(cx-.5)>.15) tips.push([3, cx<.5?"Move phone left":"Move phone right","Center the "+(mode==="food"?"dish":"product"),"warn"]);
-    }else if(mode==="place"){
-      if(area>.05 && Math.abs(cx-.5)<.08) tips.push([2, "Shift the "+subj.label+" to a side","Put it on a grid line, not dead center","warn"]);
-    }
-  }else if(detector && (mode==="food"||mode==="product"||mode==="people")){
-    tips.push([1, mode==="people"?"Find your person":"Point at the "+(mode==="food"?"dish":"product"),"Coach looks for the main subject","warn"]);
+  // template matching: compare the detected subject with the ghost outline
+  const T=curTpl(); tplMatch=false;
+  if(T.flat&&tilt&&!tilt.flat) tips.push([4,"Hold the phone flat","This template is shot from straight above","warn"]);
+  if(T.box&&subj&&mp){
+    const W=mp.W,H=mp.H, g=T.box(W,H);
+    const x0=Math.max(0,mp.x(subj.x)), y0=Math.max(0,mp.y(subj.y)), x1=Math.min(W,mp.x(subj.x+subj.w)), y1=Math.min(H,mp.y(subj.y+subj.h));
+    const sw=x1-x0, shh=y1-y0, gx1=Math.min(W,g.x+g.w), gy1=Math.min(H,g.y+g.h);
+    let size, dy;
+    if(T.fit==="top"){ size=sw/g.w; dy=(y0-g.y)/H; }               // bottom may be cut off: match width + head position
+    else if(T.fit==="full"){ size=shh/(gy1-g.y); dy=((y0+y1)/2-(g.y+gy1)/2)/H; }
+    else { size=Math.sqrt((sw*shh)/(g.w*(gy1-g.y))); dy=((y0+y1)/2-(g.y+gy1)/2)/H; }
+    const dx=((x0+x1)/2-(g.x+g.x+g.w)/2)/W;
+    const who=T.person?(T.person>1?"them":"them"):(mode==="food"?"it":"it");
+    const fitPct=Math.max(0,100-Math.round((Math.abs(size-1)*120+Math.abs(dx)*250+Math.abs(dy)*250)));
+    meters.push([fitPct>80?"ok":fitPct>55?"mid":"no","match "+fitPct+"%"]);
+    if(size<.78) tips.push([5,"Step closer","Fill the yellow outline","warn"]);
+    else if(size>1.28) tips.push([5,"Step back","Fit "+who+" inside the outline","warn"]);
+    else if(Math.abs(dx)>.07) tips.push([4, dx>0?"Move phone right":"Move phone left","Slide until "+who+" sits in the outline","warn"]);
+    else if(Math.abs(dy)>.07) tips.push([4, dy>0?"Tilt phone down":"Tilt phone up","Line up with the outline","warn"]);
+    else tplMatch=true;
+  }else if(T.box&&detector){
+    tips.push([1, T.person?(T.person>1?"Find your two people":"Find your person"):"Point at the "+(mode==="food"?"dish":"product"),"Line them up with the yellow outline","warn"]);
   }
   tips.sort((a,b)=>b[0]-a[0]);
   return {tip:tips[0]||[0,"Looks good — shoot!","Tap the green button","ok"], meters};
@@ -280,6 +361,11 @@ function draw(mp,subj){
     oc.strokeStyle="rgba(255,255,255,.6)"; oc.lineWidth=1.5; oc.beginPath(); oc.arc(cx,cy,R,0,7); oc.stroke();
     oc.fillStyle=ok?"#4cd97b":"#ffcc33"; oc.beginPath(); oc.arc(bx,by,9,0,7); oc.fill();
   }
+  // template ghost outline
+  const T=curTpl();
+  if(T.horizon){ oc.setLineDash([10,8]); oc.strokeStyle="rgba(120,200,255,.85)"; oc.lineWidth=2; oc.beginPath(); oc.moveTo(0,H*T.horizon); oc.lineTo(W,H*T.horizon); oc.stroke(); oc.setLineDash([]);
+    oc.fillStyle="rgba(120,200,255,.9)"; oc.font="600 12px -apple-system,system-ui"; oc.fillText("horizon here",12,H*T.horizon-8); }
+  if(T.box) drawGhost(T.shape,T.box(W,H),tplMatch);
   // subject brackets
   if(subj&&mp){
     const x=mp.x(subj.x), y=mp.y(subj.y), w=subj.w*mp.s, h=subj.h*mp.s, k=Math.min(22,w/4,h/4);
@@ -289,16 +375,43 @@ function draw(mp,subj){
   }
 }
 
+function drawGhost(shape,b,ok){
+  const {x,y,w,h}=b, col=ok?"76,217,123":"255,204,51";
+  oc.save(); oc.fillStyle=`rgba(${col},.13)`; oc.strokeStyle=`rgba(${col},.95)`; oc.lineWidth=2.5; oc.setLineDash(ok?[]:[9,7]);
+  const P=new Path2D();
+  const halfPerson=(cx,top,ww,hh)=>{ const r=ww*.19, hy=top+r*1.1; P.moveTo(cx+r,hy); P.arc(cx,hy,r,0,Math.PI*2);
+    const st=hy+r*1.35, sw=ww/2; P.moveTo(cx-sw,top+hh); P.lineTo(cx-sw,st+sw*.55); P.quadraticCurveTo(cx-sw,st,cx-sw*.45,st);
+    P.lineTo(cx+sw*.45,st); P.quadraticCurveTo(cx+sw,st,cx+sw,st+sw*.55); P.lineTo(cx+sw,top+hh); };
+  if(shape==="plate"){ P.arc(x+w/2,y+h/2,w/2,0,Math.PI*2); P.moveTo(x+w/2+w*.32,y+h/2); P.arc(x+w/2,y+h/2,w*.32,0,Math.PI*2); }
+  else if(shape==="ellipse"){ P.ellipse(x+w/2,y+h/2,w/2,h/2,0,0,Math.PI*2); }
+  else if(shape==="glass"){ P.moveTo(x,y); P.lineTo(x+w,y); P.lineTo(x+w*.85,y+h); P.lineTo(x+w*.15,y+h); P.closePath(); }
+  else if(shape==="box"){ P.roundRect?P.roundRect(x,y,w,h,8):P.rect(x,y,w,h); }
+  else if(shape==="half"){ halfPerson(x+w/2,y,w,h); }
+  else if(shape==="two"){ halfPerson(x+w*.27,y,w*.5,h); halfPerson(x+w*.73,y+h*.02,w*.5,h); }
+  else if(shape==="full"){ const cx=x+w/2, r=w*.17, hy=y+r; P.moveTo(cx+r,hy); P.arc(cx,hy,r,0,Math.PI*2);
+    const st=y+r*2.4; P.moveTo(cx-w*.45,st+h*.04); P.quadraticCurveTo(cx-w*.45,st,cx-w*.2,st); P.lineTo(cx+w*.2,st); P.quadraticCurveTo(cx+w*.45,st,cx+w*.45,st+h*.04);
+    P.lineTo(cx+w*.38,y+h*.52); P.lineTo(cx+w*.28,y+h*.52); P.lineTo(cx+w*.22,y+h); P.lineTo(cx+w*.04,y+h); P.lineTo(cx,y+h*.6);
+    P.lineTo(cx-w*.04,y+h); P.lineTo(cx-w*.22,y+h); P.lineTo(cx-w*.28,y+h*.52); P.lineTo(cx-w*.38,y+h*.52); P.closePath(); }
+  oc.fill(P); oc.stroke(P); oc.restore();
+}
+
 /* ---------- Main loop ---------- */
-let lastT=0, lastTip="";
+let lastT=0, lastTip="", tplMatch=false;
 function pickSubject(){
+  const T=curTpl(), want=T.person||0, people=[];
   let best=null;
   for(const d of dets){
     const c=d.categories?.[0]; if(!c)continue; const lab=c.categoryName;
     if(IGNORE.has(lab))continue;
-    if(mode==="people"&&lab!=="person")continue;
-    const b=d.boundingBox, a=b.width*b.height;
-    if(!best||a>best.a)best={x:b.originX,y:b.originY,w:b.width,h:b.height,a,label:lab};
+    if(want&&lab!=="person")continue;
+    const b=d.boundingBox, a=b.width*b.height, o={x:b.originX,y:b.originY,w:b.width,h:b.height,a,label:lab};
+    if(lab==="person")people.push(o);
+    if(!best||a>best.a)best=o;
+  }
+  if(want>1&&people.length>=2){ // union of the two biggest people
+    people.sort((p,q)=>q.a-p.a); const [p,q]=people;
+    const x=Math.min(p.x,q.x), y=Math.min(p.y,q.y), r=Math.max(p.x+p.w,q.x+q.w), btm=Math.max(p.y+p.h,q.y+q.h);
+    return {x,y,w:r-x,h:btm-y,a:(r-x)*(btm-y),label:"2 people"};
   }
   return best;
 }
@@ -311,7 +424,7 @@ function loop(t=0){
   const {tip,meters}=coach(m,subj,mp);
   draw(mp,subj);
   const el=$("tip"); const key=tip[1];
-  if(key!==lastTip){ el.className=tip[3]==="ok"?"ok":tip[3]==="bad"?"bad":""; el.innerHTML=""; el.append(tip[1]); const s=document.createElement("small"); s.textContent=tip[2]; el.append(s); lastTip=key; say(tip[1]); }
+  if(key!==lastTip){ el.className=tip[3]==="ok"?"ok":tip[3]==="bad"?"bad":""; el.innerHTML=""; el.append(tip[1]); const s=document.createElement("small"); s.textContent=tip[2]; el.append(s); lastTip=key; if($("setup").hidden)say(tip[1]); }
   $("shoot").classList.toggle("ready",tip[3]==="ok");
   const mt=$("meters"); mt.innerHTML=""; for(const [c,txt] of meters){const s=document.createElement("span");s.className="m "+c;s.textContent=txt;mt.append(s)}
 }
